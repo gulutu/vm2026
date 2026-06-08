@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Virtuelt miljø (uv) — maskinspesifikt, skal aldri inn i git
+.venv/
+
+# Hemmeligheter (API-nøkler o.l.)
+.env
+.env.*
+
+# Data — regenereres av ingest-skript, kan bli stort
+data/
+*.duckdb
+*.duckdb.wal
+
+# Jupyter
+.ipynb_checkpoints/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# macOS / editor
+.DS_Store
+.vscode/
