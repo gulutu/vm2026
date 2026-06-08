@@ -1,0 +1,15 @@
+name: 'vm2026'
+version: '1.0.0'
+config-version: 2
+
+profile: 'vm2026'
+
+model-paths: ["models"]
+
+models:
+  vm2026:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+      

@@ -1,0 +1,8 @@
+vm2026:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../data/vm2026.duckdb
+      threads: 4
+      

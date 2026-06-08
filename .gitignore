@@ -27,3 +27,4 @@ dbt/logs/
 # macOS / editor
 .DS_Store
 .vscode/
+dbt/.user.yml

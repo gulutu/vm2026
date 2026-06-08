@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Rådata lastet inn av ingest-skriptene"
+    schema: main
+    tables:
+      - name: raw_results
+        description: "Alle landskamper, inkl. kommende VM-kamper med NULL resultat"
