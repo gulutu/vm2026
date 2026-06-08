@@ -7,3 +7,5 @@ sources:
     tables:
       - name: raw_results
         description: "Alle landskamper, inkl. kommende VM-kamper med NULL resultat"
+      - name: raw_goalscorers
+        description: "Målscorere i landskamper (scorer, lag, dato, straffe/selvmål)"
