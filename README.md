@@ -46,7 +46,9 @@ Fra en maskin uten utviklingsverktøy til en fungerende prediktor, i denne rekke
   resultater kommer inn, og modellen re-predikerer det som gjenstår.
 ---
  
-## Modellen forklart
+## V1-Modellen forklart
+_- v1 — Poisson-styrkemodell (angrep/forsvar/hjemmefordel) → 1X2 + sannsynlig resultat
+_
  
 ### Intuisjonen
  
@@ -131,3 +133,7 @@ Python 3.12 (uv) · DuckDB · dbt-duckdb · pandas · statsmodels / scipy · git
 **v2** med tidsvekting (ferske kamper teller mer) → Dixon-Coles-korreksjonen →
 **turneringssimulering** (Monte Carlo: sannsynlighet for at hvert lag går videre/vinner)
 → oppdateringsflyt + Streamlit-app for å bla i prediksjonene.
+
+## v2-modellen 
+_- v2 — tidsvekting (ferske kamper teller mer; 2 års halveringstid)
+_
