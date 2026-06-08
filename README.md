@@ -135,5 +135,79 @@ Python 3.12 (uv) · DuckDB · dbt-duckdb · pandas · statsmodels / scipy · git
 → oppdateringsflyt + Streamlit-app for å bla i prediksjonene.
 
 ## v2-modellen 
-_- v2 — tidsvekting (ferske kamper teller mer; 2 års halveringstid)
-_
+v2 — tidsvekting (ferske kamper teller mer; 2 års halveringstid)
+
+OPPDATERT 22:00
+## Hva den gjør
+ 
+- **Enkeltkamper:** sannsynlighet for seier/uavgjort/tap + mest sannsynlig resultat
+- **Gruppespill:** simulerer hele gruppespillet 10 000 ganger (Monte Carlo) →
+  hvert lags sjanse for å gå videre og for å vinne gruppen
+- **Oppdaterbar midt i VM:** nye resultater inn → modellen re-trenes → nye prediksjoner
+## Hvordan det henger sammen
+ 
+```
+Data → DuckDB → dbt (staging → marts) → Poisson-modell → simulering
+```
+ 
+1. **Ingest** (`ingest/`): ~49 000 landskamper (1872–i dag) + de kommende VM-kampene,
+   fra et åpent, vedlikeholdt datasett, lastet inn i DuckDB.
+2. **dbt** (`dbt/`): renser dataene og deler dem i spilte kamper (treningsdata) og
+   kommende kamper (prediksjonsmål). Dekker nøyaktig dagens 48-lags felt.
+3. **Modell** (`models/poisson.py`): tidsvektet Poisson-regresjon.
+4. **Simulering** (`models/simulate.py`): spiller gruppespillet tusenvis av ganger.
+## Modellen, kort
+ 
+Hvert lag har en **angrepsstyrke** og en **forsvarsstyrke**, og hjemmelag scorer litt
+mer (kun på ikke-nøytral bane). Forventet antall mål:
+ 
+```
+forventede mål = exp( angrep[laget] + forsvar[motstanderen] + hjemmefordel )
+```
+ 
+Mål antas Poisson-fordelt, og alle styrkene estimeres samtidig fra historiske
+resultater, med større vekt på ferske kamper (eksponentiell tidsvekting, halveringstid
+4 år — valgt objektivt via backtesting). Fra de forventede målene bygges hele
+rutenettet av mulige resultater, som summeres til seier/uavgjort/tap.
+ 
+**Kvalitet:** backtestet til log-loss ≈ 0,857 (ren gjetting = 1,10) — altså reell
+prediktiv ferdighet. Kontroll: topp angrep = Spania/Brasil/Belgia/Tyskland/Frankrike,
+hjemmefordel ≈ 30 %.
+ 
+## Kjør selv
+ 
+```bash
+uv sync                                              # installer avhengigheter
+uv run python ingest/results.py                      # hent data → DuckDB
+cd dbt && uv run dbt run --profiles-dir . && cd ..   # transformér (dbt)
+uv run python models/poisson.py                      # kampprediksjoner
+uv run python models/simulate.py                     # gruppespill-simulering
+uv run python models/backtest.py                     # mål treffsikkerhet
+```
+ 
+## Struktur
+ 
+- `ingest/` — skript som henter data
+- `dbt/` — transformasjon (staging → marts)
+- `models/` — `poisson.py` (modell), `simulate.py` (Monte Carlo), `backtest.py` (evaluering)
+- `data/` — lokal DuckDB-database (ikke i git)
+## Stack
+ 
+Python 3.12 (uv) · DuckDB · dbt-duckdb · pandas · statsmodels / scipy
+ 
+## Status & veikart
+ 
+- [x] Datapipeline: ingest → dbt → marts
+- [x] Poisson-modell med tidsvekting, backtestet
+- [x] Gruppespill-simulering (sannsynlighet for å gå videre)
+- [ ] Sluttspill-bracket → hvem vinner VM
+- [ ] Spillernivå / målscorer-modell
+- [ ] Verdi mot bookmaker-odds
+- [ ] Streamlit-app + automatisk oppdateringsflyt
+```
+ 
+## Modellens forenklinger (bevisste)
+ 
+- Lagnivå, ikke spillernivå (kjenner ikke til skader eller troppsuttak ennå)
+- Antar hjemme- og bortemål uavhengige (ingen Dixon-Coles-korreksjon ennå)
+- Filtrerer bort lag med < 30 landskamper siden 2015 (for lite data til pålitelig estimat)
