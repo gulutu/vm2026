@@ -1,8 +1,8 @@
--- Hver spillers andel av lagets mål (siden 2022, ekskl. selvmål).
+-- Hver spillers andel av lagets mål, basert på fersk form (siden sep. 2024).
 with goals as (
     select team, scorer
     from {{ source('raw', 'raw_goalscorers') }}
-    where date >= '2022-01-01'
+    where date >= '2024-09-01'
       and scorer is not null
       and coalesce(own_goal, false) = false
 ),

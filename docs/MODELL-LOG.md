@@ -108,3 +108,14 @@ tabell); straffekonkurranse modellert som 50/50.
 - **Spillernivå / skader / tropp** — trolig den største reelle forbedringen (ville
   fanget Haaland-effekten, Frankrikes kvalitet osv.).
 - **Sammenligne mester-odds mot bookmakernes** for å se hvor modellen avviker.
+  
+## Modell — målscorer (v1)
+
+**Hva:** lagets forventede mål × spillerens andel av lagets mål (siden 2022)
+→ P(score) = 1 − e^(−forventede mål).
+
+**Resultat:** Haaland 38 % og Mbappé 42 % i Norge–Frankrike — mekanikken funker.
+
+**Kjent svakhet:** andelene bygger på *nylige scorere, ikke bekreftet tropp*.
+Avgåtte/ikke-uttatte spillere (Giroud, Dønnum) dukker opp som artefakter, og uttatte
+spillere får litt for lav andel. Fiks krever offisielle 26-mannstropper + navnematching.
