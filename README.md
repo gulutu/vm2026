@@ -25,6 +25,7 @@ uv sync
 
 ## Log
 --
+
 FASE 0 - 19:34 8.06: 
 Så langt har vi bygget:
 - `uv` som styrer prosjektpinnet Python, frikoblet fra systemet og conda
