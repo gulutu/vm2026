@@ -10,7 +10,7 @@ DB = "data/vm2026.duckdb"
 SINCE = "2015-01-01"
 MIN_MATCHES = 30
 MAX_GOALS = 10
-HALF_LIFE_YEARS = 2.0   # en kamp så gammel teller halvparten så mye som en fersk
+HALF_LIFE_YEARS = 4.0   # en kamp så gammel teller halvparten så mye som en fersk når satt til 0.2
 
 def load_matches() -> pd.DataFrame:
     con = duckdb.connect(DB, read_only=True)
