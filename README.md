@@ -24,13 +24,11 @@ uv sync
 - `data/` — lokal data (ikke i git)
 
 ## Log
---
 
-FASE 0 - 19:34 8.06: 
+### FASE 0 (19:34 8.06) 
 Så langt har vi bygget:
 - `uv` som styrer prosjektpinnet Python, frikoblet fra systemet og conda
 - **VS Code** koblet ti `.venv`, med Python, Ruff og Jupyter
 - **git + SSH** til GitHub med verifisert vertsnøkkel og passphrase i nøkkelringen
 - et **privat repo** med ren `.gitignore`, fornuftig struktur og to commits i historikken
 
---
