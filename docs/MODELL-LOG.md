@@ -119,3 +119,7 @@ tabell); straffekonkurranse modellert som 50/50.
 **Kjent svakhet:** andelene bygger på *nylige scorere, ikke bekreftet tropp*.
 Avgåtte/ikke-uttatte spillere (Giroud, Dønnum) dukker opp som artefakter, og uttatte
 spillere får litt for lav andel. Fiks krever offisielle 26-mannstropper + navnematching.
+
+**Oppdatert:** andelene strammet til fersk form (siden sep. 2024). Fjerner avgåtte/
+inaktive spillere (Giroud, Dønnum) og speiler dagens scorere. Restfeil: ingen hard
+garanti for nøyaktig 26-mannstropp — krever offisielle tropper + navnematching.
