@@ -282,19 +282,44 @@ def forside():
     today = dt.date.today()
     d_start = (dt.date(2026, 6, 11) - today).days
     d_final = (dt.date(2026, 7, 19) - today).days
-    nxt = common.get_schedule().iloc[0]
+    sched = common.get_schedule().sort_values("oslo")
+    final_tile = (f"<div class='tile'><div class='tnum'>{max(d_final, 0)}</div>"
+                  "<div class='tlab'>dager til finalen</div></div>")
 
-    start_txt = d_start if d_start > 0 else "I GANG"
-    st.markdown(
-        "<div class='tiles'>"
-        f"<div class='tile'><div class='tnum'>{start_txt}</div><div class='tlab'>dager til VM</div></div>"
-        f"<div class='tile'><div class='tnum'>{max(d_final, 0)}</div><div class='tlab'>dager til finalen</div></div>"
-        "<div class='tile kick'><div class='klab'>Åpningskamp</div>"
-        f"<div class='kteams'>{esc(nxt.team1)} – {esc(nxt.team2)}</div>"
-        f"<div class='kmeta'>{esc(common.fmt_oslo(nxt.oslo))} norsk tid · {esc(nxt.ground)}</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    if d_start > 0:
+        # Før avspark: nedtelling + åpningskamp
+        nxt = sched.iloc[0]
+        tiles = (
+            f"<div class='tile'><div class='tnum'>{d_start}</div><div class='tlab'>dager til VM</div></div>"
+            f"{final_tile}"
+            "<div class='tile kick'><div class='klab'>Åpningskamp</div>"
+            f"<div class='kteams'>{esc(nxt.team1)} – {esc(nxt.team2)}</div>"
+            f"<div class='kmeta'>{esc(common.fmt_oslo(nxt.oslo))} norsk tid · {esc(nxt.ground)}</div></div>"
+        )
+    else:
+        # VM i gang: fremdrift + neste kamp
+        now = pd.Timestamp.now(tz="Europe/Oslo").tz_convert("UTC")
+        oslo = pd.to_datetime(sched["oslo"], utc=True)
+        played = int((oslo < now).sum())
+        total = len(sched)
+        upcoming = sched[(oslo >= now).to_numpy()]
+        played_tile = (
+            f"<div class='tile'><div class='tnum'>{played}"
+            f"<span style='font-size:1.2rem;color:var(--muted)'> / {total}</span></div>"
+            "<div class='tlab'>gruppekamper spilt</div></div>"
+        )
+        if not upcoming.empty:
+            nxt = upcoming.iloc[0]
+            kick = ("<div class='tile kick'><div class='klab'>Neste kamp</div>"
+                    f"<div class='kteams'>{esc(nxt.team1)} – {esc(nxt.team2)}</div>"
+                    f"<div class='kmeta'>{esc(common.fmt_oslo(nxt.oslo))} norsk tid · {esc(nxt.ground)}</div></div>")
+        else:
+            kick = ("<div class='tile kick'><div class='klab'>Gruppespillet</div>"
+                    "<div class='kteams'>Ferdigspilt</div>"
+                    "<div class='kmeta'>Sluttspillet er i gang</div></div>")
+        tiles = f"{played_tile}{final_tile}{kick}"
+
+    st.markdown(f"<div class='tiles'>{tiles}</div>", unsafe_allow_html=True)
 
     probs = common.get_probabilities()
     top3 = probs.head(3)
