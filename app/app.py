@@ -1,6 +1,7 @@
 """VM 2026 — prediksjonsmodell. Én side med topp-navigasjon (mørkt matchday-tema)."""
 import datetime as dt
 import html
+import re
 
 import pandas as pd
 import streamlit as st
@@ -28,16 +29,20 @@ html, body, [class*="css"], [class*="st-"]{ font-family:'Inter',system-ui,sans-s
 h1,h2,h3,h4{ font-family:'Archivo',sans-serif; letter-spacing:-.01em; }
 
 /* hero */
-.hero{ text-align:center; padding:.4rem 0 1rem; }
-.hero .ball{ font-size:1.5rem; }
-.hero h1{ font-size:2.5rem; font-weight:900; margin:.1rem 0 .15rem;
-  background:linear-gradient(92deg,#fff 30%,var(--emerald)); -webkit-background-clip:text;
+.hero{ text-align:center; padding:1.4rem 1rem 1.6rem; margin-bottom:.5rem; border-radius:20px;
+  border:1px solid var(--line);
+  background:radial-gradient(120% 150% at 50% -30%, rgba(52,211,153,.18), transparent 60%), var(--surface2); }
+.hero .kick{ color:var(--emerald); font-size:.74rem; font-weight:800; letter-spacing:.22em;
+  text-transform:uppercase; font-family:'Archivo',sans-serif; }
+.hero h1{ font-size:3.1rem; font-weight:900; margin:.3rem 0 .25rem; letter-spacing:-.02em;
+  background:linear-gradient(92deg,#fff 38%,var(--emerald)); -webkit-background-clip:text;
   background-clip:text; -webkit-text-fill-color:transparent; }
-.hero .tag{ color:var(--muted); font-size:.9rem; letter-spacing:.04em; }
+.hero .tag{ color:var(--muted); font-size:.92rem; max-width:48ch; margin:0 auto; line-height:1.5; }
 
 /* nav pills */
 .stButton > button{ border-radius:999px; font-weight:700; font-family:'Archivo',sans-serif;
-  border:1px solid var(--line); background:var(--surface2); color:var(--muted); }
+  border:1px solid var(--line); background:var(--surface2); color:var(--muted);
+  white-space:nowrap; font-size:.85rem; padding:.45rem .3rem; }
 .stButton > button:hover{ border-color:var(--emerald); color:var(--ink); }
 
 /* stat tiles */
@@ -48,17 +53,20 @@ h1,h2,h3,h4{ font-family:'Archivo',sans-serif; letter-spacing:-.01em; }
   color:var(--emerald); }
 .tile .tlab{ color:var(--muted); font-size:.74rem; text-transform:uppercase; letter-spacing:.09em;
   margin-top:.35rem; }
-.tile.kick{ text-align:left; display:flex; flex-direction:column; justify-content:center; }
+.tile.kick{ text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center; }
 .tile.kick .klab{ color:var(--gold); font-size:.7rem; text-transform:uppercase; letter-spacing:.1em;
   font-weight:700; }
 .tile.kick .kteams{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1.35rem; margin:.15rem 0; }
 .tile.kick .kmeta{ color:var(--muted); font-size:.82rem; }
 
-.section{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1.25rem; margin:1.4rem 0 .2rem; }
+.section{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1.3rem; margin:1.7rem 0 .35rem;
+  display:flex; align-items:center; gap:.55rem; }
+.section::before{ content:""; width:.5rem; height:1.4rem; border-radius:3px; flex:none;
+  background:linear-gradient(var(--emerald),var(--emerald-deep)); }
 .lead{ color:var(--muted); font-size:.86rem; margin-bottom:.7rem; }
 
 /* podium */
-.podium{ display:grid; grid-template-columns:repeat(3,1fr); gap:.9rem; }
+.podium{ display:grid; grid-template-columns:repeat(3,1fr); gap:.9rem; align-items:end; }
 .pod{ border-radius:18px; padding:1.3rem .8rem 1.1rem; text-align:center; position:relative;
   background:var(--surface); border:1px solid var(--line); overflow:hidden; }
 .pod::before{ content:""; position:absolute; inset:0 0 auto 0; height:4px; }
@@ -69,6 +77,9 @@ h1,h2,h3,h4{ font-family:'Archivo',sans-serif; letter-spacing:-.01em; }
 .pod .big{ font-family:'Archivo',sans-serif; font-weight:900; font-size:2.7rem; line-height:1.05;
   color:#fff; margin:.1rem 0; }
 .pod.g1 .big{ color:var(--gold); }
+.pod.g1{ transform:translateY(-18px); padding-top:1.7rem; padding-bottom:1.3rem; }
+.pod.g1 .big{ font-size:3.1rem; }
+.pod .crown{ font-size:1.3rem; margin-bottom:-.1rem; }
 .pod .sub{ color:var(--muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.09em; }
 
 /* stat-rows m/ bjelke */
@@ -86,13 +97,14 @@ h1,h2,h3,h4{ font-family:'Archivo',sans-serif; letter-spacing:-.01em; }
 /* group wallchart cards */
 .ggrid{ display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
 .gcard{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:1rem 1.1rem; }
-.gcap{ display:flex; align-items:center; gap:.55rem; font-family:'Archivo',sans-serif; font-weight:800;
-  font-size:1.1rem; margin-bottom:.6rem; }
+.gcap{ display:flex; align-items:center; justify-content:center; gap:.55rem; font-family:'Archivo',sans-serif;
+  font-weight:800; font-size:1.1rem; margin-bottom:.7rem; }
 .gcap .badge{ width:1.8rem; height:1.8rem; display:grid; place-items:center; border-radius:9px;
   background:var(--emerald); color:#06281f; font-weight:900; }
 .trow{ display:grid; grid-template-columns:1fr 4.2rem; align-items:center; gap:.6rem; padding:.34rem 0; }
 .trow + .trow{ border-top:1px solid var(--line); }
-.trow.cut{ border-top:2px solid var(--gold); }
+.trow.cut{ border-top:2px dotted var(--gold); }
+.trow.q{ background:linear-gradient(90deg, rgba(52,211,153,.08), transparent 70%); border-radius:6px; }
 .trow .tn{ font-weight:600; font-size:.95rem; }
 .trow.q .tn::before{ content:"▸ "; color:var(--emerald); }
 .trow .tp{ text-align:right; }
@@ -101,9 +113,9 @@ h1,h2,h3,h4{ font-family:'Archivo',sans-serif; letter-spacing:-.01em; }
 .trow .tk i{ display:block; height:100%; border-radius:99px; background:var(--emerald); }
 .sublab{ color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.1em;
   font-weight:700; margin:.8rem 0 .25rem; }
-.fx{ display:grid; grid-template-columns:6.4rem 1fr auto; gap:.5rem; align-items:center;
-  padding:.28rem 0; font-size:.84rem; border-top:1px dashed var(--line); }
-.fx .w{ color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.fx{ display:grid; grid-template-columns:6.8rem 1fr auto; gap:1rem; align-items:center;
+  padding:.34rem 0; font-size:.84rem; border-top:1px dashed var(--line); }
+.fx .w{ color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; padding-right:.3rem; }
 .fx .t{ font-weight:600; }
 .fx .g{ color:var(--muted); font-size:.76rem; text-align:right; }
 
@@ -168,6 +180,49 @@ table.heat td.rk{ color:var(--muted); font-family:'Archivo',sans-serif; font-wei
 table.heat tr.t1 td.rk{ color:var(--gold);} table.heat tr.t2 td.rk{ color:#cbd5e1;} table.heat tr.t3 td.rk{ color:#d08a52;}
 table.heat td.team{ font-weight:600; white-space:nowrap; }
 
+/* program (kampprogram m/ prediksjoner) */
+.mday{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1rem; color:var(--emerald);
+  margin:1.4rem 0 .55rem; padding-bottom:.3rem; border-bottom:1px solid var(--line); }
+.mcard{ background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:.7rem .9rem; margin-bottom:.6rem; }
+.mtop{ display:flex; justify-content:space-between; font-size:.72rem; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; }
+.mtop .mtime{ font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums; }
+.mteams{ display:grid; grid-template-columns:1fr 2.6rem 1fr; align-items:center; gap:.6rem; margin-top:.45rem; }
+.mteams .mt{ display:flex; align-items:center; gap:.5rem; min-width:0; }
+.mteams .mt.away{ justify-content:flex-end; }
+.mteams .mn{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1.02rem; }
+.mteams .mp{ font-variant-numeric:tabular-nums; font-weight:700; color:var(--emerald); }
+.mteams .mt.away .mp{ color:var(--blue); }
+.mteams .mx{ text-align:center; font-size:.64rem; color:var(--muted); line-height:1.15; }
+.mbar{ display:flex; height:9px; border-radius:99px; overflow:hidden; margin:.5rem 0 .4rem; }
+.mmeta{ font-size:.78rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+.mmeta .msc{ display:block; margin-top:.18rem; color:var(--emerald); }
+
+/* fasit (resultat vs modell) */
+.fcard{ background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--muted);
+  border-radius:12px; padding:.6rem .9rem; margin-bottom:.55rem; }
+.fcard.hit{ border-left-color:var(--emerald); }
+.fcard.miss{ border-left-color:#f2706f; }
+.ftop{ display:flex; justify-content:space-between; font-size:.7rem; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; font-variant-numeric:tabular-nums; }
+.frow{ display:flex; justify-content:space-between; align-items:center; margin-top:.25rem; gap:.6rem; }
+.fteam{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1.02rem; }
+.fmark{ font-size:1.15rem; font-weight:800; }
+.fmark.y{ color:var(--emerald); }
+.fmark.n{ color:#f2706f; }
+.fmeta{ font-size:.78rem; color:var(--muted); margin-top:.18rem; }
+
+/* sluttspill */
+.koround{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1.05rem; color:var(--gold);
+  margin:1.5rem 0 .55rem; padding-bottom:.3rem; border-bottom:1px solid var(--line); }
+.kocard{ background:var(--surface); border:1px solid var(--line); border-radius:12px;
+  padding:.55rem .9rem; margin-bottom:.5rem; }
+.koteams{ font-family:'Archivo',sans-serif; font-weight:800; font-size:1rem; margin-top:.25rem;
+  display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:.6rem; }
+.koteams .ka{ text-align:right; }
+.koteams .kovs{ color:var(--muted); font-weight:700; font-size:.74rem; }
+
 /* spillerkort */
 .squad{ display:grid; grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); gap:.7rem; }
 .pc{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:.7rem .4rem .6rem;
@@ -195,19 +250,30 @@ def pctf(x, d=0):
 
 # ───────────────────────────── hero + nav ─────────────────────────────
 st.markdown(
-    "<div class='hero'><div class='ball'>⚽</div>"
-    "<h1>VM 2026</h1>"
-    "<div class='tag'>PREDIKSJONSMODELL · 48 LAG · USA · CANADA · MEXICO</div></div>",
+    "<div class='hero'>"
+    "<div class='kick'>Fotball-VM · 11. juni – 19. juli 2026</div>"
+    "<h1>Hvem løfter pokalen? 🏆</h1>"
+    "<div class='tag'>En statistisk modell spiller hele VM tusenvis av ganger — "
+    "48 lag, 104 kamper, tre vertsnasjoner — for å anslå hvor langt hvert lag kommer.</div></div>",
     unsafe_allow_html=True,
 )
 
-PAGES = ["Forside", "Grupper", "Lag", "Kamp", "Toppscorere", "Topplista"]
+PAGES = ["Forside", "Grupper", "Program", "Sluttspill", "Lag",
+         "Kamp", "Toppscorere", "Topplista", "Fasit", "Metode"]
 st.session_state.setdefault("page", "Forside")
-for col, name in zip(st.columns(len(PAGES)), PAGES):
-    if col.button(name, width="stretch",
-                  type="primary" if st.session_state.page == name else "secondary"):
-        st.session_state.page = name
-        st.rerun()
+
+
+def _nav(pages, per_row=5):
+    for i in range(0, len(pages), per_row):
+        cols = st.columns(per_row)
+        for col, name in zip(cols, pages[i:i + per_row]):
+            if col.button(name, width="stretch", key=f"nav_{name}",
+                          type="primary" if st.session_state.page == name else "secondary"):
+                st.session_state.page = name
+                st.rerun()
+
+
+_nav(PAGES)
 st.write("")
 
 
@@ -232,11 +298,15 @@ def forside():
 
     probs = common.get_probabilities()
     top3 = probs.head(3)
-    st.markdown("<div class='section'>Favoritter</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section'>Antatte vinnere</div>", unsafe_allow_html=True)
+    rows3 = list(top3.iterrows())
+    seq = ([(2, rows3[1][1]), (1, rows3[0][1]), (3, rows3[2][1])]
+           if len(rows3) >= 3 else [(i, r) for i, (_, r) in enumerate(rows3, 1)])
     cards = ""
-    for i, (_, r) in enumerate(top3.iterrows(), 1):
+    for rank, r in seq:
+        crown = "<div class='crown'>👑</div>" if rank == 1 else ""
         cards += (
-            f"<div class='pod g{i}'><div class='rank'>#{i}</div>"
+            f"<div class='pod g{rank}'>{crown}<div class='rank'>#{rank}</div>"
             f"<div class='team'>{esc(r.team)}</div>"
             f"<div class='big'>{r.champion * 100:.1f}%</div>"
             f"<div class='sub'>vinner VM · semi {pctf(r.semi)}</div></div>"
@@ -255,8 +325,10 @@ def forside():
             fx += (f"<div class='fx'><span class='w'>{esc(common.fmt_oslo(m.oslo))}</span>"
                    f"<span class='t'>{esc(m.team1)} – {esc(m.team2)}</span>"
                    f"<span class='g'>{esc(m.ground)}</span></div>")
+        st.markdown(f"<div class='section'>🇳🇴 Norge i VM — Gruppe {esc(grp)}</div>",
+                    unsafe_allow_html=True)
         st.markdown(
-            f"<div class='nor'><div class='h'>🇳🇴 Norge i VM — Gruppe {esc(grp)}</div>"
+            "<div class='nor'>"
             "<div class='norstats'>"
             f"<div class='norstat'><div class='v'>{pctf(r.knockout)}</div><div class='l'>Videre fra gruppen</div></div>"
             f"<div class='norstat'><div class='v'>{pctf(r.semi)}</div><div class='l'>Når semifinalen</div></div>"
@@ -281,7 +353,7 @@ def forside():
             )
         st.markdown(f"<div class='rows'>{rows}</div>", unsafe_allow_html=True)
     with right:
-        st.markdown("<div class='section' style='font-size:1.05rem'>Lengst odds</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section' style='font-size:1.05rem'>Minst sjanse til å vinne</div>", unsafe_allow_html=True)
         bot = probs.tail(8).sort_values("champion")
         rows = ""
         for _, r in bot.iterrows():
@@ -292,7 +364,9 @@ def forside():
                 f"<div class='val' style='font-size:.95rem'>{pctf(r.knockout)}</div></div>"
             )
         st.markdown(f"<div class='rows'>{rows}</div>", unsafe_allow_html=True)
-        st.markdown("<div class='lead' style='margin-top:.4rem'>Bjelken viser sjansen for å gå videre fra gruppen.</div>",
+        st.markdown("<div class='lead' style='margin-top:.4rem'>De åtte lagene modellen gir minst sjanse til å "
+                    "vinne hele VM. Tallet og bjelken viser hvor sannsynlig det er at de i det minste går "
+                    "videre fra gruppen.</div>",
                     unsafe_allow_html=True)
 
     st.markdown("<div class='section'>Om årets VM</div>", unsafe_allow_html=True)
@@ -515,5 +589,241 @@ def topplista():
     )
 
 
-{"Forside": forside, "Grupper": grupper, "Lag": lag, "Kamp": kamp,
- "Toppscorere": toppscorere, "Topplista": topplista}[st.session_state.page]()
+# ───────────────────────────── program ─────────────────────────────
+_NO_WD = ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"]
+_NO_MON = ["", "januar", "februar", "mars", "april", "mai", "juni", "juli",
+           "august", "september", "oktober", "november", "desember"]
+
+
+def _daylabel(ts):
+    return f"{_NO_WD[ts.weekday()]} {ts.day}. {_NO_MON[ts.month]}"
+
+
+def program():
+    st.markdown("<div class='section'>Kampprogram med prediksjoner</div>", unsafe_allow_html=True)
+    st.markdown("<div class='lead'>Modellens anslag for hver gruppespillkamp, dag for dag. "
+                "«Odds» er 1 ÷ sannsynlighet — grei å bruke i en vennekonkurranse. "
+                "Sluttspillet fylles inn etter hvert som gruppene blir ferdigspilt.</div>",
+                unsafe_allow_html=True)
+    mp = common.get_match_predictions()
+    cur, out = None, ""
+    for _, m in mp.iterrows():
+        label = _daylabel(m.match_date)
+        if label != cur:
+            cur = label
+            out += f"<div class='mday'>{label}</div>"
+        tot = m.p_home + m.p_draw + m.p_away
+        ph, pdr, pa = m.p_home / tot, m.p_draw / tot, m.p_away / tot
+        time = m.oslo.strftime("%H:%M") if m.oslo is not None else "—"
+        venue = " · ".join(x for x in [m.ground or "", (f"Gr. {m.letter}" if m.letter else "")] if x)
+        odds = f"{1 / ph:.2f} / {1 / pdr:.2f} / {1 / pa:.2f}"
+        scs = []
+        if m.top_home:
+            scs.append(f"{esc(m.home)}: {esc(m.top_home)}")
+        if m.top_away:
+            scs.append(f"{esc(m.away)}: {esc(m.top_away)}")
+        scline = (" ⚽ " + " · ".join(scs)) if scs else ""
+        out += (
+            "<div class='mcard'>"
+            f"<div class='mtop'><span class='mtime'>{time}</span><span>{esc(venue)}</span></div>"
+            "<div class='mteams'>"
+            f"<div class='mt'><span class='mn'>{esc(m.home)}</span><span class='mp'>{ph * 100:.0f}%</span></div>"
+            f"<div class='mx'>X<br>{pdr * 100:.0f}%</div>"
+            f"<div class='mt away'><span class='mp'>{pa * 100:.0f}%</span><span class='mn'>{esc(m.away)}</span></div>"
+            "</div>"
+            "<div class='mbar'>"
+            f"<div class='oseg home' style='flex:{ph:.4f}'></div>"
+            f"<div class='oseg draw' style='flex:{pdr:.4f}'></div>"
+            f"<div class='oseg away' style='flex:{pa:.4f}'></div></div>"
+            f"<div class='mmeta'>Forventet {m.exp_home:.1f}–{m.exp_away:.1f} · "
+            f"sannsynlig {m.score_h}–{m.score_a} · odds {odds}"
+            f"<span class='msc'>{scline}</span></div>"
+            "</div>"
+        )
+    st.markdown(out, unsafe_allow_html=True)
+
+
+# ───────────────────────────── sluttspill ─────────────────────────────
+ROUND_NO = {
+    "Round of 32": "32-delsfinale", "Round of 16": "Åttedelsfinale",
+    "Quarter-final": "Kvartfinale", "Quarter-finals": "Kvartfinale",
+    "Quarter-finals": "Kvartfinale", "Semi-final": "Semifinale", "Semi-finals": "Semifinale",
+    "Play-off for third place": "Bronsefinale", "Third place play-off": "Bronsefinale",
+    "Match for third place": "Bronsefinale", "Final": "Finale",
+}
+
+
+def _slot(s):
+    s = str(s)
+    m = re.fullmatch(r"([12])([A-L])", s)
+    if m:
+        return ("Vinner" if m.group(1) == "1" else "2er") + f" Gr. {m.group(2)}"
+    if re.fullmatch(r"3[A-L/]+", s):
+        return "3er (Gr. " + s[1:] + ")"
+    m = re.fullmatch(r"W(\d+)", s)
+    if m:
+        return f"Vinner kamp {m.group(1)}"
+    m = re.fullmatch(r"L(\d+)", s)
+    if m:
+        return f"Taper kamp {m.group(1)}"
+    return s
+
+
+def sluttspill():
+    st.markdown("<div class='section'>Sluttspill</div>", unsafe_allow_html=True)
+    st.markdown("<div class='lead'>Hele veien fra 32-delsfinalen til finalen. Før gruppespillet er ferdig "
+                "viser kampene plassene («Vinner Gr. A», «2er Gr. B») — de fylles inn med ekte lag etter "
+                "hvert som gruppene spilles og du henter ferske data.</div>", unsafe_allow_html=True)
+    ko = common.get_knockout()
+    if ko.empty:
+        st.markdown("<div class='lead'>Fant ingen sluttspill-kamper i kampprogrammet.</div>",
+                    unsafe_allow_html=True)
+        return
+    omin = ko.dropna(subset=["oslo"]).groupby("round").oslo.min().sort_values()
+    order = list(omin.index) + [r for r in ko["round"].unique() if r not in set(omin.index)]
+    out = ""
+    for rnd in order:
+        sub = ko[ko["round"] == rnd]
+        out += f"<div class='koround'>{esc(ROUND_NO.get(rnd, rnd))}</div>"
+        for _, m in sub.iterrows():
+            out += (
+                "<div class='kocard'>"
+                f"<div class='ftop'><span>{esc(common.fmt_oslo(m.oslo))}</span><span>{esc(m.ground)}</span></div>"
+                f"<div class='koteams'><span class='ka'>{esc(_slot(m.team1))}</span>"
+                f"<span class='kovs'>vs</span><span>{esc(_slot(m.team2))}</span></div>"
+                "</div>"
+            )
+    st.markdown(out, unsafe_allow_html=True)
+
+
+# ───────────────────────────── fasit ─────────────────────────────
+def fasit():
+    import numpy as np
+    st.markdown("<div class='section'>Fasit vs modell</div>", unsafe_allow_html=True)
+    df = common.get_results_vs_model()
+    if df.empty:
+        st.markdown("<div class='lead'>Ingen VM-kamper er spilt ennå. Etter åpningskampen — og en "
+                    "datakjøring (<code>bash update.sh</code>) — dukker fasiten opp her, så ser vi "
+                    "hvor godt modellen traff.</div>", unsafe_allow_html=True)
+        return
+    n = len(df)
+    hits = int(df.hit.sum())
+    exact = int(((df.ph == df.ah) & (df.pa_ == df.aa)).sum())
+    logloss = float((-np.log(df.p_actual.clip(lower=1e-9))).mean())
+    st.markdown(
+        "<div class='tiles' style='grid-template-columns:repeat(3,1fr)'>"
+        f"<div class='tile'><div class='tnum'>{hits}/{n}</div>"
+        f"<div class='tlab'>riktig utfall · {hits / n * 100:.0f}%</div></div>"
+        f"<div class='tile'><div class='tnum'>{exact}</div><div class='tlab'>eksakt resultat truffet</div></div>"
+        f"<div class='tile'><div class='tnum' style='font-size:2rem'>{logloss:.2f}</div>"
+        "<div class='tlab'>log-loss · gjetting = 1,10</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    nf = int(df.frozen.sum()) if "frozen" in df.columns else 0
+    if nf == n:
+        note = "Alle anslag er frosset før kampstart — en ren etterkontroll uten fasit-lekkasje."
+    elif nf > 0:
+        note = (f"{nf} av {n} anslag er frosset før kampstart; resten beregnes på nåværende "
+                "modell og er kun omtrentlige.")
+    else:
+        note = ("Ingen frosne anslag funnet ennå, så disse beregnes på nåværende modell (omtrentlig). "
+                "Kjør <code>uv run python ingest/snapshot.py</code> for å fryse før-kamp-anslag.")
+    st.markdown(f"<div class='lead'>{note}</div>", unsafe_allow_html=True)
+    out = ""
+    for _, m in df.iterrows():
+        cls = "hit" if m.hit else "miss"
+        mark = "y" if m.hit else "n"
+        sym = "✓" if m.hit else "✗"
+        time = m.oslo.strftime("%d.%m %H:%M") if m.oslo is not None else ""
+        gr = f"Gr. {esc(m.letter)}" if m.letter else ""
+        outcomes = [(esc(m.home), m.p_home, m.pred == "H"),
+                    ("uavgjort", m.p_draw, m.pred == "U"),
+                    (esc(m.away), m.p_away, m.pred == "B")]
+        parts = []
+        for lbl, p, pick in outcomes:
+            t = f"{lbl} {p * 100:.0f}%"
+            parts.append(f"<b style='color:var(--ink)'>{t}</b>" if pick else t)
+        meta = "Modellen ga: " + " · ".join(parts)
+        out += (
+            f"<div class='fcard {cls}'>"
+            f"<div class='ftop'><span>{time}</span><span>{gr}</span></div>"
+            f"<div class='frow'><span class='fteam'>{esc(m.home)} {m.ah}–{m.aa} {esc(m.away)}</span>"
+            f"<span class='fmark {mark}'>{sym}</span></div>"
+            f"<div class='fmeta'>{meta}</div>"
+            "</div>"
+        )
+    st.markdown(out, unsafe_allow_html=True)
+
+
+# ───────────────────────────── metode ─────────────────────────────
+def metode():
+    st.markdown("<div class='section'>Slik fungerer modellen</div>", unsafe_allow_html=True)
+    st.markdown("<div class='lead'>Alt på siden kommer fra én statistisk modell trent på faktiske "
+                "landskamp-resultater. Her er hva den gjør, hvorfor — og hva den bevisst ikke gjør.</div>",
+                unsafe_allow_html=True)
+
+    st.markdown("<div class='section' style='font-size:1.1rem'>Datagrunnlaget</div>", unsafe_allow_html=True)
+    st.write("Modellen lærer av rundt 49 000 internasjonale landskamper fra 1872 til i dag, pluss "
+             "målscorer-data og det offisielle VM-kampprogrammet. Lag med færre enn 30 kamper siden 2015 "
+             "filtreres bort — det er for lite til å anslå en pålitelig styrke, og alle 48 VM-lag er godt "
+             "over grensen. VM-historikk i seg selv betyr ingenting: et lag rangeres etter hvordan det "
+             "faktisk har spilt nylig, ikke etter gamle meritter.")
+
+    st.markdown("<div class='section' style='font-size:1.1rem'>Lagstyrke — tidsvektet Poisson</div>",
+                unsafe_allow_html=True)
+    st.write("Hvert lag får en angreps- og en forsvarsstyrke, og hjemmelag scorer litt mer — men kun på "
+             "ikke-nøytral bane. Nesten alle VM-kamper er nøytrale; unntaket er vertsnasjonene (USA, Mexico, "
+             "Canada) når de spiller hjemme. Forventet antall mål regnes slik:")
+    st.code("forventede mål = exp( angrep[laget] + forsvar[motstanderen] + hjemmefordel )", language=None)
+    st.write("Alle styrkene estimeres samtidig fra resultatene med Poisson-regresjon. Ferske kamper teller "
+             "mest: en kamp vektes ned eksponentielt med alderen, med 4 års halveringstid — en verdi vi "
+             "valgte objektivt ved å teste, ikke gjette.")
+
+    st.markdown("<div class='section' style='font-size:1.1rem'>Treffsikkerhet (backtesting)</div>",
+                unsafe_allow_html=True)
+    st.write("Vi trener på kamper før en gitt dato og tester på de etter, og måler med log-loss (straffer "
+             "selvsikre feil hardt; lavere = bedre). Ren gjetting gir ≈ 1,10.")
+    bt = [("1 år", "0,8674"), ("2 år", "0,8586"), ("4 år ← valgt", "0,8569"),
+          ("8 år", "0,8573"), ("ingen vekting", "0,8588")]
+    trs = "".join(f"<tr><td class='lft team'>{esc(a)}</td><td>{esc(b)}</td></tr>" for a, b in bt)
+    st.markdown(
+        "<div class='heatwrap' style='max-width:340px'><table class='heat'>"
+        "<thead><tr><th class='lft'>Halveringstid</th><th>Log-loss</th></tr></thead>"
+        f"<tbody>{trs}</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
+    st.write("Modellen lander på ~0,857 — altså ekte prediktiv ferdighet. Kontroll: de sterkeste angrepene "
+             "er Spania, Brasil, Belgia, Tyskland og Frankrike, og hjemmefordelen tilsvarer ~30 % flere mål. "
+             "Tidsvekting hjelper bare marginalt — det største løftet ville vært bedre data, ikke en fancier "
+             "algoritme.")
+
+    st.markdown("<div class='section' style='font-size:1.1rem'>Fra kamp til turnering</div>",
+                unsafe_allow_html=True)
+    st.write("For én kamp bygger vi hele rutenettet av mulige resultater (0–0, 1–0, 2–1 …) og summerer til "
+             "seier, uavgjort og tap. For hele VM bruker vi Monte Carlo: vi spiller turneringen tusenvis av "
+             "ganger, trekker et tilfeldig resultat for hver kamp fra modellen, og teller hvor ofte hvert lag "
+             "går videre, når semi og vinner. Andelen ganger blir sannsynligheten.")
+    st.write("Én bevisst forenkling: sluttspill-bracketen trekkes foreløpig tilfeldig, ikke etter FIFAs faste "
+             "oppsett med tredjeplass-tabellen. Det påvirker enkeltlags vei litt, men nesten ikke topp-"
+             "favorittenes mester-odds. Straffekonkurranser modelleres som 50/50.")
+
+    st.markdown("<div class='section' style='font-size:1.1rem'>Hvem scorer (gullstøvelen)</div>",
+                unsafe_allow_html=True)
+    st.write("Lagets forventede mål fordeles på spillerne etter hvor stor andel av lagets mål hver pleier å "
+             "score, basert på fersk form. Gullstøvel-anslaget ganger denne andelen med lagets snitt "
+             "forventede mål og forventet antall kamper. Derfor kan en spiller som tar en stor andel av "
+             "målene til et lag som går langt (f.eks. Enner Valencia for Ecuador) havne foran kjente navn på "
+             "sterkere lag som deler målene på flere — det er forventet oppførsel av regnestykket, ikke en feil.")
+
+    st.markdown("<div class='section' style='font-size:1.1rem'>Hva modellen ikke vet</div>",
+                unsafe_allow_html=True)
+    st.write("Den er på lagnivå, ikke spillernivå: den kjenner ikke skader, formkurver eller troppkvalitet ut "
+             "over hva resultatene viser. Derfor rangerer den f.eks. Frankrike lavere enn bookmakerne — den "
+             "ser aggregerte ferske mål, ikke at troppen er eksepsjonell. Tenk på den som en ærlig, kalibrert "
+             "baseline, ikke et orakel. Vær mest skeptisk der troppkvalitet og resultater spriker.")
+
+
+{"Forside": forside, "Grupper": grupper, "Program": program, "Sluttspill": sluttspill,
+ "Lag": lag, "Kamp": kamp, "Toppscorere": toppscorere, "Topplista": topplista,
+ "Fasit": fasit, "Metode": metode}[st.session_state.page]()

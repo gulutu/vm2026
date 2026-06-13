@@ -1,21 +1,48 @@
 """Importerbar turneringssimulering: sannsynlighet per lag for hver runde.
 
+Henter de 12 gruppene fra hele gruppespill-oppsettet (stabilt gjennom hele VM),
+bruker faktiske resultater for kamper som er spilt, og trekker bare tilfeldig for
+de som gjenstår. Slik tåler den at VM er i gang.
+
 Kjør direkte for en rask kontroll:  uv run python models/tournament.py
 Ellers: importer simulate() fra appen.
 """
 from collections import defaultdict
 
+import duckdb
 import numpy as np
 import pandas as pd
 
-from poisson import load_matches, filter_teams, add_weights, to_long, fit, load_fixtures
+from poisson import load_matches, filter_teams, add_weights, to_long, fit
 
+DB = "data/vm2026.duckdb"
 N_DEFAULT = 5000
 
+# Gruppespillet spilles 11.–27. juni 2026; sluttspillet starter etterpå. Dette
+# vinduet plukker derfor ut nøyaktig de 72 gruppekampene (spilte + kommende) og
+# holder sluttspillkamper ute, uansett hvor langt i turneringen vi er kommet.
+GROUP_FROM = "2026-06-11"
+GROUP_TO = "2026-06-27"
 
-def derive_groups(fixtures):
+
+def load_group_matches():
+    """Alle gruppekamper (spilte har resultat, kommende har NULL)."""
+    con = duckdb.connect(DB, read_only=True)
+    df = con.execute(
+        f"""
+        select home_team, away_team, home_score, away_score
+        from raw_results
+        where tournament = 'FIFA World Cup'
+          and date between '{GROUP_FROM}' and '{GROUP_TO}'
+        """
+    ).df()
+    con.close()
+    return df
+
+
+def derive_groups(matches):
     adj = defaultdict(set)
-    for _, m in fixtures.iterrows():
+    for _, m in matches.iterrows():
         adj[m.home_team].add(m.away_team)
         adj[m.away_team].add(m.home_team)
     groups, seen = [], set()
@@ -43,14 +70,24 @@ def expected_goals_matrix(model, teams):
 
 def simulate(model=None, n=N_DEFAULT, seed=None):
     """Simulerer hele VM n ganger. Returnerer DataFrame med sannsynlighet per lag
-    for å nå hver runde, sortert på mester-sannsynlighet."""
+    for å nå hver runde, sortert på mester-sannsynlighet. Allerede spilte
+    gruppekamper er låst til sitt faktiske resultat."""
     if model is None:
         model = fit(to_long(add_weights(filter_teams(load_matches()))))
-    fixtures = load_fixtures()
-    groups = derive_groups(fixtures)
+
+    gm = load_group_matches()
+    groups = derive_groups(gm)
     teams = sorted({t for g in groups for t in g})
     eg, idx = expected_goals_matrix(model, teams)
     group_idx = [[idx[t] for t in g] for g in groups]
+
+    # Faktiske resultater, nøklet på uordnet lag-par (lagret i hjemmelagets retning).
+    played = {}
+    for _, m in gm.iterrows():
+        if (pd.notna(m.home_score) and pd.notna(m.away_score)
+                and m.home_team in idx and m.away_team in idx):
+            i, j = idx[m.home_team], idx[m.away_team]
+            played[frozenset((i, j))] = (i, int(m.home_score), int(m.away_score))
 
     rng = np.random.default_rng(seed)
     nt = len(teams)
@@ -68,10 +105,15 @@ def simulate(model=None, n=N_DEFAULT, seed=None):
             pts = dict.fromkeys(g, 0)
             gd = dict.fromkeys(g, 0)
             gf = dict.fromkeys(g, 0)
-            for a in range(4):
-                for b in range(a + 1, 4):
+            for a in range(len(g)):
+                for b in range(a + 1, len(g)):
                     i, j = g[a], g[b]
-                    gi, gj = rng.poisson(eg[i, j]), rng.poisson(eg[j, i])
+                    res = played.get(frozenset((i, j)))
+                    if res is not None:
+                        hi, hs, as_ = res
+                        gi, gj = (hs, as_) if hi == i else (as_, hs)
+                    else:
+                        gi, gj = rng.poisson(eg[i, j]), rng.poisson(eg[j, i])
                     gf[i] += gi; gf[j] += gj
                     gd[i] += gi - gj; gd[j] += gj - gi
                     if gi > gj:
