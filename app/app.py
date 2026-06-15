@@ -236,6 +236,38 @@ table.heat td.team{ font-weight:600; white-space:nowrap; }
   margin:1rem 0 .55rem; display:flex; align-items:center; gap:.5rem; }
 .poslab::after{ content:""; flex:1; height:1px; background:var(--line); }
 .teamstats{ display:grid; grid-template-columns:repeat(4,1fr); gap:.7rem; margin:.4rem 0 .2rem; }
+
+/* ── mobil: la rutenettene stable seg og skalere ned ── */
+@media (max-width: 760px){
+  .block-container{ padding-left:.55rem; padding-right:.55rem; }
+  .hero{ padding:1rem .8rem 1.1rem; border-radius:16px; }
+  .hero h1{ font-size:2.05rem; }
+  .hero .tag{ font-size:.86rem; }
+
+  .tiles{ grid-template-columns:1fr !important; gap:.6rem; }
+  .tile{ padding:.9rem 1rem; }
+  .tile .tnum{ font-size:2.1rem; }
+  .tile.kick .kteams{ font-size:1.25rem; }
+
+  .podium{ grid-template-columns:1fr !important; gap:.6rem; }
+  .pod{ padding:1rem .9rem; }
+  .pod.g1{ transform:none; padding-top:1.1rem; }
+  .pod .big{ font-size:2.2rem; }
+  .pod.g1 .big{ font-size:2.4rem; }
+
+  .ggrid{ grid-template-columns:1fr !important; }
+  .teamstats{ grid-template-columns:repeat(2,1fr) !important; }
+  .squad{ grid-template-columns:repeat(auto-fill,minmax(84px,1fr)) !important; }
+
+  .fx{ grid-template-columns:4.6rem 1fr !important; gap:.5rem; }
+  .fx .g{ display:none; }
+
+  .stButton > button{ white-space:normal !important; font-size:.72rem;
+    padding:.4rem .2rem; line-height:1.12; }
+
+  .heatwrap{ -webkit-overflow-scrolling:touch; }
+  table.heat{ font-size:.78rem; }
+}
 </style>
 """, unsafe_allow_html=True)
 
