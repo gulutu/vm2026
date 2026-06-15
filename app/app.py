@@ -444,8 +444,15 @@ def grupper():
     letters = sorted(sched.letter.unique())
     st.markdown("<div class='section'>Grupper og kampprogram</div>", unsafe_allow_html=True)
     st.markdown("<div class='lead'>Prosenten er modellens sjanse for å gå videre fra gruppen. "
-                "Gull-linjen markerer kvalifiseringsgrensen (topp to). Alle klokkeslett i norsk tid.</div>",
+                "Gull-linjen markerer kvalifiseringsgrensen (topp to). Ferdigspilte kamper viser "
+                "resultatet i grønt; resten viser avspark i norsk tid.</div>",
                 unsafe_allow_html=True)
+
+    res = common.get_results_vs_model()
+    score_map = {}
+    for _, m in res.iterrows():
+        score_map[frozenset({common.norm(m.home), common.norm(m.away)})] = (
+            common.norm(m.home), int(m.ah), int(m.aa))
 
     cards = ""
     for L in letters:
@@ -467,7 +474,14 @@ def grupper():
             )
         fx = ""
         for _, m in gm.iterrows():
-            fx += (f"<div class='fx'><span class='w'>{esc(common.fmt_oslo(m.oslo))}</span>"
+            sc = score_map.get(frozenset({common.norm(m.team1), common.norm(m.team2)}))
+            if sc is not None:
+                home_norm, hs, as_ = sc
+                s1, s2 = (hs, as_) if home_norm == common.norm(m.team1) else (as_, hs)
+                left = f"<span class='w' style='color:var(--emerald);font-weight:800'>{s1}–{s2}</span>"
+            else:
+                left = f"<span class='w'>{esc(common.fmt_oslo(m.oslo))}</span>"
+            fx += (f"<div class='fx'>{left}"
                    f"<span class='t'>{esc(m.team1)} – {esc(m.team2)}</span>"
                    f"<span class='g'>{esc(m.ground)}</span></div>")
         cards += (
