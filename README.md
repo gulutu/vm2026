@@ -5,8 +5,6 @@ kamputfall, gruppespill og hvem som vinner turneringen. Bygget som en datapipeli
 (ingest → DuckDB → dbt → modell → simulering) med en interaktiv Streamlit-app som er
 deployet i skyen og kan oppdateres midt i mesterskapet.
 
-**Live:** `https://<din-app>.streamlit.app` (Streamlit Community Cloud)
-
 ## Hva den gjør
 
 - **Enkeltkamper:** sannsynlighet for seier/uavgjort/tap, forventede mål og mest
