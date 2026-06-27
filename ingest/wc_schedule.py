@@ -22,16 +22,17 @@ def download():
 
 def load():
     data = json.loads(RAW.read_text(encoding="utf-8"))
-    rows = [{"round": m.get("round"), "date": m.get("date"), "time": m.get("time"),
-             "grp": m.get("group"), "team1": m.get("team1"), "team2": m.get("team2"),
-             "ground": m.get("ground")} for m in data["matches"]]
+    rows = [{"num": m.get("num"), "round": m.get("round"), "date": m.get("date"),
+             "time": m.get("time"), "grp": m.get("group"), "team1": m.get("team1"),
+             "team2": m.get("team2"), "ground": m.get("ground")} for m in data["matches"]]
     df = pd.DataFrame(rows)
     con = duckdb.connect(DB)
     con.register("sched_df", df)
     con.execute("CREATE OR REPLACE TABLE raw_schedule AS SELECT * FROM sched_df")
     n = con.execute("select count(*) from raw_schedule").fetchone()[0]
     g = con.execute("select count(*) from raw_schedule where grp is not null").fetchone()[0]
-    print(f"\nraw_schedule: {n} kamper ({g} i gruppespillet)")
+    k = con.execute("select count(*) from raw_schedule where num is not null").fetchone()[0]
+    print(f"\nraw_schedule: {n} kamper ({g} i gruppespillet, {k} med kampnummer)")
     con.close()
 
 

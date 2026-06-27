@@ -2,6 +2,7 @@
 import datetime as dt
 import html
 import re
+import unicodedata
 
 import pandas as pd
 import streamlit as st
@@ -280,6 +281,50 @@ def pctf(x, d=0):
     return f"{x * 100:.{d}f}%"
 
 
+# ── Flagg (emoji) for VM-lagene, nøklet på normalisert navn ──
+def _fnorm(s):
+    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower()
+    s = s.replace("&", " and ")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", s).split())
+
+
+_FLAG_ISO = {
+    "mexico": "MX", "south africa": "ZA", "south korea": "KR", "czech republic": "CZ",
+    "bosnia and herzegovina": "BA", "canada": "CA", "qatar": "QA", "switzerland": "CH",
+    "brazil": "BR", "haiti": "HT", "morocco": "MA",
+    "australia": "AU", "paraguay": "PY", "turkey": "TR", "united states": "US", "usa": "US",
+    "curacao": "CW", "ecuador": "EC", "germany": "DE", "ivory coast": "CI",
+    "japan": "JP", "netherlands": "NL", "sweden": "SE", "tunisia": "TN",
+    "belgium": "BE", "egypt": "EG", "iran": "IR", "new zealand": "NZ",
+    "cape verde": "CV", "saudi arabia": "SA", "spain": "ES", "uruguay": "UY",
+    "france": "FR", "iraq": "IQ", "norway": "NO", "senegal": "SN",
+    "algeria": "DZ", "argentina": "AR", "austria": "AT", "jordan": "JO",
+    "colombia": "CO", "dr congo": "CD", "portugal": "PT", "uzbekistan": "UZ",
+    "croatia": "HR", "ghana": "GH", "panama": "PA",
+}
+# England og Skottland bruker egne subdivisjons-flagg, ikke en landkode.
+_FLAG_SPECIAL = {
+    "england": "\U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F",
+    "scotland": "\U0001F3F4\U000E0067\U000E0062\U000E0073\U000E0063\U000E0074\U000E007F",
+}
+
+
+def flag(name):
+    key = _fnorm(name)
+    if key in _FLAG_SPECIAL:
+        return _FLAG_SPECIAL[key]
+    iso = _FLAG_ISO.get(key)
+    if not iso:
+        return ""
+    return chr(0x1F1E6 + ord(iso[0]) - 65) + chr(0x1F1E6 + ord(iso[1]) - 65)
+
+
+def tf(name):
+    """Lagnavn med flagg foran (uendret hvis vi ikke har et flagg)."""
+    f = flag(name)
+    return f"{f} {esc(name)}" if f else esc(name)
+
+
 # ───────────────────────────── hero + nav ─────────────────────────────
 st.markdown(
     "<div class='hero'>"
@@ -290,8 +335,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-PAGES = ["Forside", "Grupper", "Program", "Sluttspill", "Lag",
-         "Kamp", "Toppscorere", "Topplista", "Fasit", "Metode"]
+PAGES = ["Forside", "Grupper", "Program", "Sluttspill",
+         "Toppscorere", "Topplista", "Fasit", "Metode"]
 st.session_state.setdefault("page", "Forside")
 
 
@@ -305,7 +350,7 @@ def _nav(pages, per_row=5):
                 st.rerun()
 
 
-_nav(PAGES)
+_nav(PAGES, per_row=4)
 st.write("")
 
 
@@ -364,7 +409,7 @@ def forside():
         crown = "<div class='crown'>👑</div>" if rank == 1 else ""
         cards += (
             f"<div class='pod g{rank}'>{crown}<div class='rank'>#{rank}</div>"
-            f"<div class='team'>{esc(r.team)}</div>"
+            f"<div class='team'>{tf(r.team)}</div>"
             f"<div class='big'>{r.champion * 100:.1f}%</div>"
             f"<div class='sub'>vinner VM · semi {pctf(r.semi)}</div></div>"
         )
@@ -380,7 +425,7 @@ def forside():
         fx = ""
         for _, m in nm.iterrows():
             fx += (f"<div class='fx'><span class='w'>{esc(common.fmt_oslo(m.oslo))}</span>"
-                   f"<span class='t'>{esc(m.team1)} – {esc(m.team2)}</span>"
+                   f"<span class='t'>{tf(m.team1)} – {tf(m.team2)}</span>"
                    f"<span class='g'>{esc(m.ground)}</span></div>")
         st.markdown(f"<div class='section'>🇳🇴 Norge i VM — Gruppe {esc(grp)}</div>",
                     unsafe_allow_html=True)
@@ -396,35 +441,6 @@ def forside():
 
     # to lister
     st.write("")
-    left, right = st.columns(2)
-    maxc = float(probs.champion.max()) or 1.0
-    with left:
-        st.markdown("<div class='section' style='font-size:1.05rem'>Resten av topp 10</div>", unsafe_allow_html=True)
-        rows = ""
-        for i, (_, r) in enumerate(probs.iloc[3:10].iterrows(), 4):
-            rows += (
-                f"<div class='srow'><div class='rk'>{i}</div>"
-                f"<div><span class='nm'>{esc(r.team)}<span class='meta'>semi {pctf(r.semi)}</span></span>"
-                f"<div class='track'><div class='fill' style='width:{r.champion / maxc * 100:.0f}%'></div></div></div>"
-                f"<div class='val'>{r.champion * 100:.1f}%</div></div>"
-            )
-        st.markdown(f"<div class='rows'>{rows}</div>", unsafe_allow_html=True)
-    with right:
-        st.markdown("<div class='section' style='font-size:1.05rem'>Minst sjanse til å vinne</div>", unsafe_allow_html=True)
-        bot = probs.tail(8).sort_values("champion")
-        rows = ""
-        for _, r in bot.iterrows():
-            rows += (
-                f"<div class='srow'><div class='rk'></div>"
-                f"<div><span class='nm'>{esc(r.team)}<span class='meta'>vinner {pctf(r.champion, 1)}</span></span>"
-                f"<div class='track'><div class='fill' style='width:{r.knockout * 100:.0f}%'></div></div></div>"
-                f"<div class='val' style='font-size:.95rem'>{pctf(r.knockout)}</div></div>"
-            )
-        st.markdown(f"<div class='rows'>{rows}</div>", unsafe_allow_html=True)
-        st.markdown("<div class='lead' style='margin-top:.4rem'>De åtte lagene modellen gir minst sjanse til å "
-                    "vinne hele VM. Tallet og bjelken viser hvor sannsynlig det er at de i det minste går "
-                    "videre fra gruppen.</div>",
-                    unsafe_allow_html=True)
 
     st.markdown("<div class='section'>Om årets VM</div>", unsafe_allow_html=True)
     st.write(
@@ -468,7 +484,7 @@ def grupper():
             if k == 2:
                 cls += " cut"
             trows += (
-                f"<div class='{cls}'><div class='tn'>{esc(t)}</div>"
+                f"<div class='{cls}'><div class='tn'>{tf(t)}</div>"
                 f"<div class='tp'><span class='pp'>{pp}</span>"
                 f"<div class='tk'><i style='width:{w:.0f}%'></i></div></div></div>"
             )
@@ -482,7 +498,7 @@ def grupper():
             else:
                 left = f"<span class='w'>{esc(common.fmt_oslo(m.oslo))}</span>"
             fx += (f"<div class='fx'>{left}"
-                   f"<span class='t'>{esc(m.team1)} – {esc(m.team2)}</span>"
+                   f"<span class='t'>{tf(m.team1)} – {tf(m.team2)}</span>"
                    f"<span class='g'>{esc(m.ground)}</span></div>")
         cards += (
             f"<div class='gcard'><div class='gcap'><span class='badge'>{esc(L)}</span>Gruppe {esc(L)}</div>"
@@ -896,5 +912,5 @@ def metode():
 
 
 {"Forside": forside, "Grupper": grupper, "Program": program, "Sluttspill": sluttspill,
- "Lag": lag, "Kamp": kamp, "Toppscorere": toppscorere, "Topplista": topplista,
+ "Toppscorere": toppscorere, "Topplista": topplista,
  "Fasit": fasit, "Metode": metode}[st.session_state.page]()
