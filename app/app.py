@@ -225,6 +225,9 @@ table.heat td.team{ font-weight:600; white-space:nowrap; }
   display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:.6rem; }
 .koteams .ka{ text-align:right; }
 .koteams .kovs{ color:var(--muted); font-weight:700; font-size:.74rem; }
+.kop{ display:grid; grid-template-columns:1fr 1fr; font-size:.74rem; color:var(--muted);
+  font-variant-numeric:tabular-nums; margin-top:.35rem; }
+.kop .a{ text-align:right; }
 
 /* spillerkort */
 .squad{ display:grid; grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); gap:.7rem; }
@@ -867,9 +870,9 @@ def _daylabel(ts):
 
 def program():
     st.markdown("<div class='section'>Kampprogram med prediksjoner</div>", unsafe_allow_html=True)
-    st.markdown("<div class='lead'>Modellens anslag for hver gruppespillkamp, dag for dag. "
-                "«Odds» er 1 ÷ sannsynlighet — grei å bruke i en vennekonkurranse. "
-                "Sluttspillet fylles inn etter hvert som gruppene blir ferdigspilt.</div>",
+    st.markdown("<div class='lead'>Modellens anslag for hver kommende kamp, dag for dag — gruppespill og "
+                "sluttspill, etter hvert som motstanderne er kjent. «Odds» er 1 ÷ sannsynlighet — grei å "
+                "bruke i en vennekonkurranse.</div>",
                 unsafe_allow_html=True)
     mp = common.get_match_predictions()
     cur, out = None, ""
@@ -942,14 +945,24 @@ def _koslot(s):
 
 def sluttspill():
     st.markdown("<div class='section'>Sluttspill</div>", unsafe_allow_html=True)
-    st.markdown("<div class='lead'>Hele veien fra 32-delsfinalen til finalen. Før gruppespillet er ferdig "
-                "viser kampene plassene («Vinner Gr. A», «2er Gr. B») — de fylles inn med ekte lag etter "
-                "hvert som gruppene spilles og du henter ferske data.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='lead'>Hele veien fra 32-delsfinalen til finalen, med modellens "
+                "videre-sannsynlighet der begge lag er kjent. Kamper med ledige plasser («Vinner Gr. A», "
+                "«2er Gr. B», «Vinner kamp 74») fylles inn med ekte lag etter hvert som de avgjøres og du "
+                "henter ferske data.</div>", unsafe_allow_html=True)
     ko = common.get_knockout()
     if ko.empty:
         st.markdown("<div class='lead'>Fant ingen sluttspill-kamper i kampprogrammet.</div>",
                     unsafe_allow_html=True)
         return
+
+    # Videre-sannsynlighet (uavgjort telles halvt til hver, som ved straffespark) for
+    # kamper der begge lag er kjent — slått opp fra samme prediksjoner som Program-siden.
+    padv = {}
+    for _, r in common.get_match_predictions().iterrows():
+        tot = r.p_home + r.p_draw + r.p_away
+        adv_home = (r.p_home + r.p_draw / 2) / tot
+        padv[frozenset((common.norm(r.home), common.norm(r.away)))] = (common.norm(r.home), adv_home)
+
     omin = ko.dropna(subset=["oslo"]).groupby("round").oslo.min().sort_values()
     order = list(omin.index) + [r for r in ko["round"].unique() if r not in set(omin.index)]
     out = ""
@@ -957,11 +970,26 @@ def sluttspill():
         sub = ko[ko["round"] == rnd]
         out += f"<div class='koround'>{esc(ROUND_NO.get(rnd, rnd))}</div>"
         for _, m in sub.iterrows():
+            pct = ""
+            if flag(m.team1) and flag(m.team2):
+                hit = padv.get(frozenset((common.norm(m.team1), common.norm(m.team2))))
+                if hit is not None:
+                    home_norm, adv_home = hit
+                    p1 = adv_home if home_norm == common.norm(m.team1) else 1 - adv_home
+                    p2 = 1 - p1
+                    pct = (
+                        f"<div class='kop'><span>{p1 * 100:.0f}%</span>"
+                        f"<span class='a'>{p2 * 100:.0f}%</span></div>"
+                        "<div class='mbar'>"
+                        f"<div class='oseg home' style='flex:{p1:.4f}'></div>"
+                        f"<div class='oseg away' style='flex:{p2:.4f}'></div></div>"
+                    )
             out += (
                 "<div class='kocard'>"
                 f"<div class='ftop'><span>{esc(common.fmt_oslo(m.oslo))}</span><span>{esc(m.ground)}</span></div>"
                 f"<div class='koteams'><span class='ka'>{_koslot(m.team1)}</span>"
                 f"<span class='kovs'>vs</span><span>{_koslot(m.team2)}</span></div>"
+                f"{pct}"
                 "</div>"
             )
     st.markdown(out, unsafe_allow_html=True)
