@@ -500,23 +500,41 @@ def forside():
         # VM i gang: fremdrift + neste kamp
         now = pd.Timestamp.now(tz="Europe/Oslo").tz_convert("UTC")
         oslo = pd.to_datetime(sched["oslo"], utc=True)
-        played = int((oslo < now).sum())
-        total = len(sched)
         upcoming = sched[(oslo >= now).to_numpy()]
-        played_tile = (
-            f"<div class='tile'><div class='tnum'>{played}"
-            f"<span style='font-size:1.2rem;color:var(--muted)'> / {total}</span></div>"
-            "<div class='tlab'>gruppekamper spilt</div></div>"
-        )
+
         if not upcoming.empty:
+            # Gruppespillet pågår
+            played = int((oslo < now).sum())
+            total = len(sched)
+            played_tile = (
+                f"<div class='tile'><div class='tnum'>{played}"
+                f"<span style='font-size:1.2rem;color:var(--muted)'> / {total}</span></div>"
+                "<div class='tlab'>gruppekamper spilt</div></div>"
+            )
             nxt = upcoming.iloc[0]
             kick = ("<div class='tile kick'><div class='klab'>Neste kamp</div>"
                     f"<div class='kteams'>{esc(nxt.team1)} – {esc(nxt.team2)}</div>"
                     f"<div class='kmeta'>{esc(common.fmt_oslo(nxt.oslo))} norsk tid · {esc(nxt.ground)}</div></div>")
         else:
-            kick = ("<div class='tile kick'><div class='klab'>Gruppespillet</div>"
-                    "<div class='kteams'>Ferdigspilt</div>"
-                    "<div class='kmeta'>Sluttspillet er i gang</div></div>")
+            # Sluttspillet pågår
+            ko = _knockout_rows()
+            ko_oslo = pd.to_datetime(ko["oslo"], utc=True)
+            played_tile = (
+                f"<div class='tile'><div class='tnum'>{int((ko_oslo < now).sum())}"
+                f"<span style='font-size:1.2rem;color:var(--muted)'> / {len(ko)}</span></div>"
+                "<div class='tlab'>sluttspillkamper spilt</div></div>"
+            )
+            ko_upcoming = ko[(ko_oslo >= now).to_numpy()].sort_values("num")
+            if not ko_upcoming.empty:
+                nxt = ko_upcoming.iloc[0]
+                rnd = nxt["round"]
+                kick = (f"<div class='tile kick'><div class='klab'>Neste kamp — {esc(ROUND_NO.get(rnd, rnd))}</div>"
+                        f"<div class='kteams'>{esc(nxt.team1)} – {esc(nxt.team2)}</div>"
+                        f"<div class='kmeta'>{esc(common.fmt_oslo(nxt.oslo))} norsk tid · {esc(nxt.ground)}</div></div>")
+            else:
+                kick = ("<div class='tile kick'><div class='klab'>Sluttspillet</div>"
+                        "<div class='kteams'>Ferdigspilt</div>"
+                        "<div class='kmeta'>Takk for VM! 🏆</div></div>")
         tiles = f"{played_tile}{final_tile}{kick}"
 
     st.markdown(f"<div class='tiles'>{tiles}</div>", unsafe_allow_html=True)
