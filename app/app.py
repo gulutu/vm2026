@@ -1034,6 +1034,15 @@ def metode():
                 "landskamp-resultater. Her er hva den gjør, hvorfor — og hva den bevisst ikke gjør.</div>",
                 unsafe_allow_html=True)
 
+    st.markdown(
+        "<div class='gcard'>"
+        "<b>I korte trekk:</b> hvert landslag får et angreps- og forsvarstall basert på hvordan det faktisk "
+        "har prestert i nyere kamper. Tallene brukes til å regne sannsynligheten for hvert mulige resultat "
+        "i én kamp (0–0, 1–0, 2–1 …). For hele VM lar vi en datamaskin spille turneringen tusenvis av "
+        "ganger med de sannsynlighetene — og teller hvor ofte hvert lag går videre, når semifinalen eller "
+        "vinner. Andelen ganger blir prosenten du ser i appen."
+        "</div>", unsafe_allow_html=True)
+
     st.markdown("<div class='section' style='font-size:1.1rem'>Datagrunnlaget</div>", unsafe_allow_html=True)
     st.write("Modellen lærer av rundt 49 000 internasjonale landskamper fra 1872 til i dag, pluss "
              "målscorer-data og det offisielle VM-kampprogrammet. Lag med færre enn 30 kamper siden 2015 "
@@ -1047,14 +1056,37 @@ def metode():
              "ikke-nøytral bane. Nesten alle VM-kamper er nøytrale; unntaket er vertsnasjonene (USA, Mexico, "
              "Canada) når de spiller hjemme. Forventet antall mål regnes slik:")
     st.code("forventede mål = exp( angrep[laget] + forsvar[motstanderen] + hjemmefordel )", language=None)
-    st.write("Alle styrkene estimeres samtidig fra resultatene med Poisson-regresjon. Ferske kamper teller "
-             "mest: en kamp vektes ned eksponentielt med alderen, med 4 års halveringstid — en verdi vi "
-             "valgte objektivt ved å teste, ikke gjette.")
+    st.write("Hvorfor Poisson? Mål i fotball er relativt sjeldne, «tilfeldige» hendelser spredt utover 90 "
+             "minutter — nøyaktig den typen hendelser Poisson-fordelingen er laget for å beskrive (samme "
+             "fordeling brukes for alt fra innkommende telefonsamtaler til radioaktivt henfall). Alle "
+             "styrkene estimeres samtidig fra resultatene med Poisson-regresjon. Ferske kamper teller mest: "
+             "en kamp vektes ned eksponentielt med alderen, med 4 års halveringstid — en verdi vi valgte "
+             "objektivt ved å teste, ikke gjette.")
+
+    st.markdown("<div class='section' style='font-size:1.1rem'>Hva er log-loss?</div>", unsafe_allow_html=True)
+    st.write("Vi måler treffsikkerhet med log-loss, som ikke bare sjekker om modellen gjettet riktig utfall — "
+             "den straffer *skråsikre* feil mye hardere enn usikre feil. Regnestykket: ta sannsynligheten "
+             "modellen ga det som faktisk skjedde, og regn ut −ln(den sannsynligheten). Jo nærmere 100 % "
+             "modellen la på det som faktisk skjedde, jo nærmere 0 blir log-lossen.")
+    st.markdown(
+        "<div class='ggrid'>"
+        "<div class='fcard hit'><div class='ftop'><span>Usikker, tar feil</span></div>"
+        "<div class='frow'><span class='fteam'>Sa 50/50 — feil vei</span>"
+        "<span class='fmark y'>0,69</span></div>"
+        "<div class='fmeta'>−ln(0,50) — mild straff, modellen var uansett i tvil.</div></div>"
+        "<div class='fcard miss'><div class='ftop'><span>Skråsikker, tar feil</span></div>"
+        "<div class='frow'><span class='fteam'>Sa 99 % — feil vei</span>"
+        "<span class='fmark n'>4,61</span></div>"
+        "<div class='fmeta'>−ln(0,01) — hard straff for skråsikkerhet på feil hest.</div></div>"
+        "</div>", unsafe_allow_html=True)
+    st.write("Ren gjetting (33 % på hvert utfall, hver kamp) gir log-loss ln(3) ≈ 1,10 — det er målestokken "
+             "«ingen modell i det hele tatt». Alt under det er reell prediktiv ferdighet.")
 
     st.markdown("<div class='section' style='font-size:1.1rem'>Treffsikkerhet (backtesting)</div>",
                 unsafe_allow_html=True)
-    st.write("Vi trener på kamper før en gitt dato og tester på de etter, og måler med log-loss (straffer "
-             "selvsikre feil hardt; lavere = bedre). Ren gjetting gir ≈ 1,10.")
+    st.write("Vi trener på kamper før en gitt dato og tester på de etter — modellen ser aldri fasiten på "
+             "forhånd. Halveringstiden på tidsvektingen (hvor fort gamle kamper «glemmes») ble valgt ved å "
+             "teste flere verdier og se hvilken som ga lavest log-loss, ikke ved å gjette:")
     bt = [("1 år", "0,8674"), ("2 år", "0,8586"), ("4 år ← valgt", "0,8569"),
           ("8 år", "0,8573"), ("ingen vekting", "0,8588")]
     trs = "".join(f"<tr><td class='lft team'>{esc(a)}</td><td>{esc(b)}</td></tr>" for a, b in bt)
@@ -1064,20 +1096,22 @@ def metode():
         f"<tbody>{trs}</tbody></table></div>",
         unsafe_allow_html=True,
     )
-    st.write("Modellen lander på ~0,857 — altså ekte prediktiv ferdighet. Kontroll: de sterkeste angrepene "
-             "er Spania, Brasil, Belgia, Tyskland og Frankrike, og hjemmefordelen tilsvarer ~30 % flere mål. "
-             "Tidsvekting hjelper bare marginalt — det største løftet ville vært bedre data, ikke en fancier "
-             "algoritme.")
+    st.write("Modellen lander på ~0,857 mot ~1,10 for ren gjetting. Kontroll: de sterkeste angrepene er "
+             "Spania, Brasil, Belgia, Tyskland og Frankrike, og hjemmefordelen tilsvarer ~30 % flere mål — "
+             "begge stemmer godt med det man skulle tro. Tidsvekting hjelper bare marginalt (0,857 mot 0,859 "
+             "uten) — det største løftet videre ville vært bedre data, ikke en «fancier» algoritme.")
 
     st.markdown("<div class='section' style='font-size:1.1rem'>Fra kamp til turnering</div>",
                 unsafe_allow_html=True)
     st.write("For én kamp bygger vi hele rutenettet av mulige resultater (0–0, 1–0, 2–1 …) og summerer til "
              "seier, uavgjort og tap. For hele VM bruker vi Monte Carlo: vi spiller turneringen tusenvis av "
-             "ganger, trekker et tilfeldig resultat for hver kamp fra modellen, og teller hvor ofte hvert lag "
-             "går videre, når semi og vinner. Andelen ganger blir sannsynligheten.")
-    st.write("Én bevisst forenkling: sluttspill-bracketen trekkes foreløpig tilfeldig, ikke etter FIFAs faste "
-             "oppsett med tredjeplass-tabellen. Det påvirker enkeltlags vei litt, men nesten ikke topp-"
-             "favorittenes mester-odds. Straffekonkurranser modelleres som 50/50.")
+             "ganger, trekker et tilfeldig resultat for hver gjenstående kamp fra modellen, og teller hvor "
+             "ofte hvert lag går videre, når semi og vinner. Andelen ganger blir sannsynligheten.")
+    st.write("Sluttspillet følger FIFAs ekte bracket for VM 2026 (faste plasser som «vinner gruppe A» og "
+             "«beste 3.-plass», ikke en tilfeldig trekning), og alle kamper — gruppespill *og* sluttspill — "
+             "låses til sitt faktiske resultat i simuleringen etter hvert som de spilles. Kun de kampene som "
+             "gjenstår, trekkes tilfeldig. Straffekonkurranser ved uavgjort i sluttspillet modelleres som "
+             "50/50, siden det ikke finnes noen god statistisk modell for straffesparkferdighet i datagrunnlaget.")
 
     st.markdown("<div class='section' style='font-size:1.1rem'>Hvem scorer (gullstøvelen)</div>",
                 unsafe_allow_html=True)
