@@ -770,7 +770,7 @@ def toppscorere():
         cls = f"lrow top{i}" if i <= 3 else "lrow"
         rows += (
             f"<div class='{cls}'><div class='lr'>{i}</div>"
-            f"<div><div class='who'>{esc(r.scorer)}<span class='tm'>{esc(r.team)}</span></div>"
+            f"<div><div class='who'>{esc(r.scorer)}<span class='tm'>{tf(r.team)}</span></div>"
             f"<div class='ltk'><i style='width:{r.exp_goals / mx * 100:.0f}%'></i></div></div>"
             f"<div class='lv'>{r.exp_goals:.2f}</div></div>"
         )
@@ -796,7 +796,7 @@ def topplista():
             alpha = min(v ** 0.7, 1.0)
             cells += f"<td style='background:rgba(52,211,153,{alpha:.3f})'>{v * 100:.1f}%</td>"
         body += (f"<tr class='{tcls}'><td class='rk'>{i}</td>"
-                 f"<td class='team lft'>{esc(r.team)}</td>{cells}</tr>")
+                 f"<td class='team lft'>{tf(r.team)}</td>{cells}</tr>")
     st.markdown(
         f"<div class='heatwrap'><table class='heat'><thead><tr>{head}</tr></thead>"
         f"<tbody>{body}</tbody></table></div>",
@@ -842,9 +842,9 @@ def program():
             "<div class='mcard'>"
             f"<div class='mtop'><span class='mtime'>{time}</span><span>{esc(venue)}</span></div>"
             "<div class='mteams'>"
-            f"<div class='mt'><span class='mn'>{esc(m.home)}</span><span class='mp'>{ph * 100:.0f}%</span></div>"
+            f"<div class='mt'><span class='mn'>{tf(m.home)}</span><span class='mp'>{ph * 100:.0f}%</span></div>"
             f"<div class='mx'>X<br>{pdr * 100:.0f}%</div>"
-            f"<div class='mt away'><span class='mp'>{pa * 100:.0f}%</span><span class='mn'>{esc(m.away)}</span></div>"
+            f"<div class='mt away'><span class='mp'>{pa * 100:.0f}%</span><span class='mn'>{tf(m.away)}</span></div>"
             "</div>"
             "<div class='mbar'>"
             f"<div class='oseg home' style='flex:{ph:.4f}'></div>"
@@ -884,6 +884,11 @@ def _slot(s):
     return s
 
 
+def _koslot(s):
+    """Ekte lag → flagg + navn; ellers prettifisert plass-kode."""
+    return tf(s) if flag(s) else esc(_slot(s))
+
+
 def sluttspill():
     st.markdown("<div class='section'>Sluttspill</div>", unsafe_allow_html=True)
     st.markdown("<div class='lead'>Hele veien fra 32-delsfinalen til finalen. Før gruppespillet er ferdig "
@@ -904,8 +909,8 @@ def sluttspill():
             out += (
                 "<div class='kocard'>"
                 f"<div class='ftop'><span>{esc(common.fmt_oslo(m.oslo))}</span><span>{esc(m.ground)}</span></div>"
-                f"<div class='koteams'><span class='ka'>{esc(_slot(m.team1))}</span>"
-                f"<span class='kovs'>vs</span><span>{esc(_slot(m.team2))}</span></div>"
+                f"<div class='koteams'><span class='ka'>{_koslot(m.team1)}</span>"
+                f"<span class='kovs'>vs</span><span>{_koslot(m.team2)}</span></div>"
                 "</div>"
             )
     st.markdown(out, unsafe_allow_html=True)
@@ -952,9 +957,9 @@ def fasit():
         sym = "✓" if m.hit else "✗"
         time = m.oslo.strftime("%d.%m %H:%M") if m.oslo is not None else ""
         gr = f"Gr. {esc(m.letter)}" if m.letter else ""
-        outcomes = [(esc(m.home), m.p_home, m.pred == "H"),
+        outcomes = [(tf(m.home), m.p_home, m.pred == "H"),
                     ("uavgjort", m.p_draw, m.pred == "U"),
-                    (esc(m.away), m.p_away, m.pred == "B")]
+                    (tf(m.away), m.p_away, m.pred == "B")]
         parts = []
         for lbl, p, pick in outcomes:
             t = f"{lbl} {p * 100:.0f}%"
@@ -963,7 +968,7 @@ def fasit():
         out += (
             f"<div class='fcard {cls}'>"
             f"<div class='ftop'><span>{time}</span><span>{gr}</span></div>"
-            f"<div class='frow'><span class='fteam'>{esc(m.home)} {m.ah}–{m.aa} {esc(m.away)}</span>"
+            f"<div class='frow'><span class='fteam'>{tf(m.home)} {m.ah}–{m.aa} {tf(m.away)}</span>"
             f"<span class='fmark {mark}'>{sym}</span></div>"
             f"<div class='fmeta'>{meta}</div>"
             "</div>"
