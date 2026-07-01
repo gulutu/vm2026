@@ -57,6 +57,13 @@ TREE = [
 ]
 THIRD_SLOTS = [(num, b[1]) for num, a, b in R32 if b[0] == THIRD]
 
+# Barn i sluttspilltreet: hvilken senere kamp mottar vinneren av denne kampen.
+_KO_CHILD = {}
+for _num, _fa, _fb in TREE:
+    _KO_CHILD[_fa] = _num
+    _KO_CHILD[_fb] = _num
+_ALL_KO_NUMS = [n for n, _, _ in R32] + [n for n, _, _ in TREE]
+
 # Bro mellom openfootball-navn (raw_schedule) og martj42-navn (modellen).
 _ALIAS = {"usa": "united states"}
 
@@ -94,6 +101,35 @@ def load_group_letters():
         L = str(r.grp).replace("Group ", "").strip()
         letters.setdefault(L, set()).update([r.team1, r.team2])
     return letters
+
+
+def load_knockout_schedule():
+    """{kampnr: (lag1, lag2)} for sluttspillkamper, openfootball-navn.
+    Etter hvert som kamper spilles bytter openfootball ut plassholdere
+    ("W74"/"L74") med det ekte laget i senere runders rader."""
+    con = duckdb.connect(DB, read_only=True)
+    df = con.execute(
+        "select num, team1, team2 from raw_schedule "
+        "where num is not null and round != 'Match for third place'"
+    ).df()
+    con.close()
+    return {int(r.num): (r.team1, r.team2) for r in df.itertuples()}
+
+
+def resolve_played_knockout(byteam, to_mart, idx):
+    """{kampnr: lagindeks} for sluttspillkamper som allerede er avgjort — vinneren
+    leses av at neste kamps rad har byttet ut W##/L## med et ekte lagnavn."""
+    played = {}
+    for num in _ALL_KO_NUMS:
+        child = _KO_CHILD.get(num)
+        if child is None or child not in byteam:
+            continue
+        t1, t2 = byteam[num]
+        cset = set(byteam[child])
+        winner = t1 if t1 in cset else (t2 if t2 in cset else None)
+        if winner is not None:
+            played[num] = idx[to_mart(winner)]
+    return played
 
 
 def expected_goals_matrix(model, teams):
@@ -176,7 +212,7 @@ def _match_thirds(qual_letters, rng):
 def simulate(model=None, n=N_DEFAULT, seed=None):
     """Simulerer hele VM n ganger via den ekte bracketen. Returnerer DataFrame
     med sannsynlighet per lag for hver runde, sortert på mester-sannsynlighet.
-    Spilte gruppekamper er låst til sitt faktiske resultat."""
+    Spilte gruppe- og sluttspillkamper er låst til sitt faktiske resultat."""
     if model is None:
         model = fit(to_long(add_weights(filter_teams(load_matches()))))
 
@@ -206,6 +242,8 @@ def simulate(model=None, n=N_DEFAULT, seed=None):
                 and m.home_team in idx and m.away_team in idx):
             i, j = idx[m.home_team], idx[m.away_team]
             played[frozenset((i, j))] = (i, int(m.home_score), int(m.away_score))
+
+    played_ko = resolve_played_knockout(load_knockout_schedule(), to_mart, idx)
 
     rng = np.random.default_rng(seed)
     nt = len(teams)
@@ -242,9 +280,10 @@ def simulate(model=None, n=N_DEFAULT, seed=None):
             i = slot_team(sa, num, win, run, third, s2l)
             j = slot_team(sb, num, win, run, third, s2l)
             r32_teams += [i, j]
-            res[num] = _ko_winner(i, j, eg, rng)
+            res[num] = played_ko[num] if num in played_ko else _ko_winner(i, j, eg, rng)
         for num, fa, fb in TREE:
-            res[num] = _ko_winner(res[fa], res[fb], eg, rng)
+            res[num] = (played_ko[num] if num in played_ko
+                        else _ko_winner(res[fa], res[fb], eg, rng))
 
         for t in r32_teams:
             knockout[t] += 1
