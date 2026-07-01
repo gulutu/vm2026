@@ -4,10 +4,12 @@ import html
 import re
 import unicodedata
 
+import duckdb
 import pandas as pd
 import streamlit as st
 
 import common
+import tournament
 from poisson import predict_match
 from scorers import scorer_table
 
@@ -238,6 +240,19 @@ table.heat td.team{ font-weight:600; white-space:nowrap; }
 .poslab::after{ content:""; flex:1; height:1px; background:var(--line); }
 .teamstats{ display:grid; grid-template-columns:repeat(4,1fr); gap:.7rem; margin:.4rem 0 .2rem; }
 
+/* sluttspill-tre */
+.bkwrap{ overflow-x:auto; padding-bottom:.45rem; margin:.2rem 0 .4rem; }
+.bk{ display:flex; gap:.5rem; min-width:max-content; }
+.bkcol{ display:flex; flex-direction:column; justify-content:space-around; gap:.45rem; min-width:8.6rem; }
+.bkhead{ font-size:.7rem; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);
+         text-align:center; margin-bottom:.25rem; font-weight:800; }
+.bkm{ background:rgba(255,255,255,.035); border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+.bkt{ padding:.34rem .55rem; font-size:.82rem; white-space:nowrap; overflow:hidden;
+      text-overflow:ellipsis; border-bottom:1px solid var(--line); }
+.bkm .bkt:last-child{ border-bottom:0; }
+.bkt.win{ font-weight:800; background:rgba(52,211,153,.14); }
+.bkt.code{ color:var(--muted); white-space:normal; font-size:.74rem; line-height:1.22; }
+
 /* ── mobil: la rutenettene stable seg og skalere ned ── */
 @media (max-width: 760px){
   .block-container{ padding-left:.55rem; padding-right:.55rem; }
@@ -268,6 +283,8 @@ table.heat td.team{ font-weight:600; white-space:nowrap; }
 
   .heatwrap{ -webkit-overflow-scrolling:touch; }
   table.heat{ font-size:.78rem; }
+  .bkcol{ min-width:7.4rem; }
+  .bkt{ font-size:.76rem; padding:.3rem .45rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -323,6 +340,110 @@ def tf(name):
     """Lagnavn med flagg foran (uendret hvis vi ikke har et flagg)."""
     f = flag(name)
     return f"{f} {esc(name)}" if f else esc(name)
+
+
+# ── Sluttspill-tre (forsiden) ──
+_BK_ROUNDS = ["Round of 32", "Round of 16", "Quarter-final", "Semi-final", "Final"]
+_BK_SHORT = {"Round of 32": "32-del", "Round of 16": "16-del",
+             "Quarter-final": "Kvart", "Semi-final": "Semi", "Final": "Finale"}
+_BK_SOURCES = {c: (a, b) for c, a, b in tournament.TREE}
+_BK_CHILD = {}
+for _c, _a, _b in tournament.TREE:
+    _BK_CHILD[_a] = _c
+    _BK_CHILD[_b] = _c
+
+
+def _bk_leaforder(n):
+    if n in _BK_SOURCES:
+        a, b = _BK_SOURCES[n]
+        return _bk_leaforder(a) + _bk_leaforder(b)
+    return [n]
+
+
+_GRP_RE = re.compile(r"^([123])([A-L])$")
+
+
+def _bk_concrete(v):
+    """Sant hvis plassen er et ekte lag eller en gruppeplass (ikke en W/L-peker)."""
+    return re.match(r"^[WL]\d+$", str(v)) is None
+
+
+def _bk_short(v):
+    """Kort, lesbar etikett for en plass: lag, gruppeplassering, eller 3.-plass."""
+    if flag(v):
+        return tf(v)
+    m = _GRP_RE.match(str(v))
+    if m:
+        k, L = m.groups()
+        pre = {"1": "vinner gr.", "2": "2er gr.", "3": "3er gr."}[k]
+        return f"{pre} {L}"
+    if str(v)[:1] == "3" and "/" in str(v):
+        return "3.-plass"
+    return esc(v)
+
+
+@st.cache_data(show_spinner=False)
+def _knockout_rows():
+    """Sluttspillkamper med kampnummer (tom hvis 'num' ikke finnes ennå)."""
+    try:
+        con = duckdb.connect(getattr(common, "DB", "data/vm2026.duckdb"), read_only=True)
+        df = con.execute(
+            "select num, round, team1, team2 from raw_schedule "
+            "where num is not null and round != 'Match for third place'"
+        ).df()
+        con.close()
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["num", "round", "team1", "team2"])
+
+
+def _bracket_html(rows):
+    if rows.empty:
+        return ""
+    byteam = {int(r.num): (r.team1, r.team2) for r in rows.itertuples()}
+    rounds = {int(r.num): r.round for r in rows.itertuples()}
+    if 104 not in byteam:
+        return ""
+    pos = {n: i for i, n in enumerate(_bk_leaforder(104))}
+
+    def leafmin(n):
+        return min(pos.get(le, 999) for le in _bk_leaforder(n))
+
+    def winner(n):
+        t1, t2 = byteam[n]
+        c = _BK_CHILD.get(n)
+        if not c or c not in byteam:
+            return None
+        cset = {byteam[c][0], byteam[c][1]}
+        return t1 if t1 in cset else (t2 if t2 in cset else None)
+
+    def cell(v, won):
+        if flag(v):
+            return f"<div class='bkt{' win' if won else ''}'>{tf(v)}</div>"
+        mw = re.match(r"^([WL])(\d+)$", str(v))
+        if mw:
+            src = int(mw.group(2))
+            wl = "Vinner" if mw.group(1) == "W" else "Taper"
+            if src in byteam and all(_bk_concrete(x) for x in byteam[src]):
+                s1, s2 = byteam[src]
+                txt = f"{wl} av {_bk_short(s1)} – {_bk_short(s2)}"
+            else:
+                txt = f"{wl} kamp {src}"
+            return f"<div class='bkt code'>{txt}</div>"
+        return f"<div class='bkt code'>{_bk_short(v)}</div>"
+
+    cols = ""
+    for rnd in _BK_ROUNDS:
+        nums = sorted([n for n in byteam if rounds.get(n) == rnd], key=leafmin)
+        if not nums:
+            continue
+        cells = ""
+        for n in nums:
+            t1, t2 = byteam[n]
+            w = winner(n)
+            cells += f"<div class='bkm'>{cell(t1, w == t1)}{cell(t2, w == t2)}</div>"
+        cols += f"<div class='bkcol'><div class='bkhead'>{_BK_SHORT[rnd]}</div>{cells}</div>"
+    return f"<div class='bkwrap'><div class='bk'>{cols}</div></div>"
 
 
 # ───────────────────────────── hero + nav ─────────────────────────────
@@ -439,8 +560,15 @@ def forside():
             unsafe_allow_html=True,
         )
 
-    # to lister
+    # sluttspill-tre
     st.write("")
+    bk = _bracket_html(_knockout_rows())
+    if bk:
+        st.markdown("<div class='section'>Veien til finalen</div>", unsafe_allow_html=True)
+        st.markdown("<div class='lead'>Hele sluttspill-treet — ekte lag fylles inn etter hvert som "
+                    "rundene avgjøres, og vinneren av hver kamp markeres i grønt. "
+                    "Sveip vannrett for å se hele veien.</div>", unsafe_allow_html=True)
+        st.markdown(bk, unsafe_allow_html=True)
 
     st.markdown("<div class='section'>Om årets VM</div>", unsafe_allow_html=True)
     st.write(
