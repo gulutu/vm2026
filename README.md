@@ -22,7 +22,7 @@ deployet i skyen og kan oppdateres midt i mesterskapet.
 
 ## Appen
 
-Mørkt «matchday»-tema med ti sider: Forside, Grupper, Program, Sluttspill, Lag, Kamp,
+Mørkt «matchday»-tema med åtte sider: Forside, Grupper, Program, Sluttspill,
 Toppscorere, Topplista, Fasit og Metode. Kjører lokalt under utvikling og er deployet på
 Streamlit Community Cloud for visning på telefon/web.
 
@@ -65,9 +65,10 @@ hjemmefordel ≈ 30 %.
 
 **Bevisste forenklinger:** lagnivå, ikke spillernivå (kjenner ikke skader/troppsuttak);
 antar hjemme- og bortemål uavhengige (ingen Dixon-Coles-korreksjon); lag med
-< 30 landskamper siden 2015 filtreres bort; sluttspillet bruker foreløpig en forenklet
-(tilfeldig) bracket blant de 32 kvalifiserte. Spilte gruppekamper låses derimot til sitt
-faktiske resultat i simuleringen.
+< 30 landskamper siden 2015 filtreres bort; uavgjort i sluttspillet avgjøres 50/50
+(ingen egen straffesparkmodell). Sluttspillet følger derimot den ekte FIFA-bracketen
+(faste slot-koder + W/L-tre), og spilte gruppe- *og* sluttspillkamper låses til sitt
+faktiske resultat i simuleringen etter hvert som de spilles.
 
 ## Oppdatere midt i VM
 
@@ -127,7 +128,7 @@ Streamlit (Community Cloud)
 - [x] Tidsvektet Poisson-modell, backtestet mot historikk
 - [x] Gruppespill- og turneringssimulering (videre + mester)
 - [x] Gullstøvel-modell (andel av lagets mål)
-- [x] Streamlit-app (ti sider) deployet på Streamlit Community Cloud
+- [x] Streamlit-app (åtte sider) deployet på Streamlit Community Cloud
 - [x] Oppdateringsflyt (`update.sh`) + frosne før-kamp-anslag (Fasit)
-- [x] Simulering som låser inn faktisk spilte gruppekamper
-- [ ] Ekte sluttspill-bracket (FIFAs tredjeplass-logikk) — erstatter dagens tilfeldige bracket
+- [x] Ekte sluttspill-bracket (FIFAs tredjeplass-logikk)
+- [x] Simulering som låser inn faktisk spilte gruppe- og sluttspillkamper
