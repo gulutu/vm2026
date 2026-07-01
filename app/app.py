@@ -388,13 +388,15 @@ def _knockout_rows():
     try:
         con = duckdb.connect(getattr(common, "DB", "data/vm2026.duckdb"), read_only=True)
         df = con.execute(
-            "select num, round, team1, team2 from raw_schedule "
+            "select num, round, date, time, team1, team2, ground from raw_schedule "
             "where num is not null and round != 'Match for third place'"
         ).df()
         con.close()
+        df["oslo"] = [common.to_oslo(d, t) for d, t in zip(df.date, df.time)]
         return df
     except Exception:
-        return pd.DataFrame(columns=["num", "round", "team1", "team2"])
+        return pd.DataFrame(columns=["num", "round", "date", "time",
+                                     "team1", "team2", "ground", "oslo"])
 
 
 def _bracket_html(rows):
@@ -536,27 +538,58 @@ def forside():
         )
     st.markdown(f"<div class='podium'>{cards}</div>", unsafe_allow_html=True)
 
-    # Norge
+    # Norge — ser framover: neste kamp + sannsynlighet videre
     nor = probs[probs.team == "Norway"]
-    sched = common.get_schedule()
-    nm = sched[(sched.team1 == "Norway") | (sched.team2 == "Norway")]
     if not nor.empty:
         r = nor.iloc[0]
-        grp = nm.iloc[0].letter if not nm.empty else "?"
-        fx = ""
-        for _, m in nm.iterrows():
-            fx += (f"<div class='fx'><span class='w'>{esc(common.fmt_oslo(m.oslo))}</span>"
-                   f"<span class='t'>{tf(m.team1)} – {tf(m.team2)}</span>"
-                   f"<span class='g'>{esc(m.ground)}</span></div>")
-        st.markdown(f"<div class='section'>🇳🇴 Norge i VM — Gruppe {esc(grp)}</div>",
-                    unsafe_allow_html=True)
+        now = pd.Timestamp.now(tz="Europe/Oslo").tz_convert("UTC")
+
+        def _fxrow(t1, t2, oslo, ground):
+            return (f"<div class='fx'><span class='w'>{esc(common.fmt_oslo(oslo))}</span>"
+                    f"<span class='t'>{tf(t1)} – {tf(t2)}</span>"
+                    f"<span class='g'>{esc(ground)}</span></div>")
+
+        sched = common.get_schedule()
+        nm = sched[(sched.team1 == "Norway") | (sched.team2 == "Norway")]
+        nextgrp = None
+        if not nm.empty:
+            fut = nm[(pd.to_datetime(nm["oslo"], utc=True) >= now).to_numpy()].sort_values("oslo")
+            nextgrp = fut.iloc[0] if not fut.empty else None
+
+        ko = _knockout_rows()
+        nextko = None
+        if not ko.empty:
+            nk = ko[(ko.team1 == "Norway") | (ko.team2 == "Norway")]
+            if not nk.empty:
+                fut = nk[(pd.to_datetime(nk["oslo"], utc=True) >= now).to_numpy()].sort_values("num")
+                nextko = fut.iloc[0] if not fut.empty else None
+
+        if nextgrp is not None:
+            label, body = "Neste kamp — gruppespill", _fxrow(
+                nextgrp.team1, nextgrp.team2, nextgrp.oslo, nextgrp.ground)
+        elif nextko is not None:
+            rnd = nextko["round"]
+            label = "Neste kamp — " + ROUND_NO.get(rnd, rnd)
+            body = _fxrow(nextko.team1, nextko.team2, nextko.oslo, nextko.ground)
+        elif r.knockout > 0.99:
+            label, body = "Status", ("<div class='lead' style='margin:.1rem 0 0'>Videre fra "
+                                     "gruppa — motstander i sluttspillet avgjøres snart.</div>")
+        elif r.knockout < 0.01:
+            label, body = "Status", ("<div class='lead' style='margin:.1rem 0 0'>Norge er ute "
+                                     "av VM. Takk for følget! 🇳🇴</div>")
+        else:
+            label, body = "Status", ("<div class='lead' style='margin:.1rem 0 0'>Gruppespillet "
+                                     "pågår.</div>")
+
+        st.markdown("<div class='section'>🇳🇴 Norge i VM</div>", unsafe_allow_html=True)
         st.markdown(
             "<div class='nor'>"
             "<div class='norstats'>"
-            f"<div class='norstat'><div class='v'>{pctf(r.knockout)}</div><div class='l'>Videre fra gruppen</div></div>"
-            f"<div class='norstat'><div class='v'>{pctf(r.semi)}</div><div class='l'>Når semifinalen</div></div>"
+            f"<div class='norstat'><div class='v'>{pctf(r.quarter)}</div><div class='l'>Til kvartfinalen</div></div>"
+            f"<div class='norstat'><div class='v'>{pctf(r.semi)}</div><div class='l'>Til semifinalen</div></div>"
             f"<div class='norstat win'><div class='v'>{pctf(r.champion, 1)}</div><div class='l'>Vinner VM</div></div>"
-            f"</div>{fx}</div>",
+            "</div>"
+            f"<div class='sublab'>{label}</div>{body}</div>",
             unsafe_allow_html=True,
         )
 
