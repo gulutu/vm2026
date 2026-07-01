@@ -955,13 +955,15 @@ def sluttspill():
                     unsafe_allow_html=True)
         return
 
-    # Videre-sannsynlighet (uavgjort telles halvt til hver, som ved straffespark) for
-    # kamper der begge lag er kjent — slått opp fra samme prediksjoner som Program-siden.
+    # Videre-sannsynlighet (uavgjort telles halvt til hver, som ved straffespark) og
+    # sannsynlig resultat for kamper der begge lag er kjent — slått opp fra samme
+    # prediksjoner som Program-siden.
     padv = {}
     for _, r in common.get_match_predictions().iterrows():
         tot = r.p_home + r.p_draw + r.p_away
         adv_home = (r.p_home + r.p_draw / 2) / tot
-        padv[frozenset((common.norm(r.home), common.norm(r.away)))] = (common.norm(r.home), adv_home)
+        padv[frozenset((common.norm(r.home), common.norm(r.away)))] = (
+            common.norm(r.home), adv_home, int(r.score_h), int(r.score_a))
 
     omin = ko.dropna(subset=["oslo"]).groupby("round").oslo.min().sort_values()
     order = list(omin.index) + [r for r in ko["round"].unique() if r not in set(omin.index)]
@@ -974,15 +976,18 @@ def sluttspill():
             if flag(m.team1) and flag(m.team2):
                 hit = padv.get(frozenset((common.norm(m.team1), common.norm(m.team2))))
                 if hit is not None:
-                    home_norm, adv_home = hit
-                    p1 = adv_home if home_norm == common.norm(m.team1) else 1 - adv_home
+                    home_norm, adv_home, sc_h, sc_a = hit
+                    is_t1_home = home_norm == common.norm(m.team1)
+                    p1 = adv_home if is_t1_home else 1 - adv_home
                     p2 = 1 - p1
+                    s1, s2 = (sc_h, sc_a) if is_t1_home else (sc_a, sc_h)
                     pct = (
                         f"<div class='kop'><span>{p1 * 100:.0f}%</span>"
                         f"<span class='a'>{p2 * 100:.0f}%</span></div>"
                         "<div class='mbar'>"
                         f"<div class='oseg home' style='flex:{p1:.4f}'></div>"
                         f"<div class='oseg away' style='flex:{p2:.4f}'></div></div>"
+                        f"<div class='fmeta' style='text-align:center'>sannsynlig {s1}–{s2}</div>"
                     )
             out += (
                 "<div class='kocard'>"
