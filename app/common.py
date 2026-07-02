@@ -257,3 +257,19 @@ def get_knockout():
     con.close()
     df["oslo"] = [to_oslo(d, t) for d, t in zip(df.date, df.time)]
     return df.sort_values("oslo")
+
+
+@st.cache_data
+def get_knockout_results():
+    """{uordnet lagpar: (hjemmelag, hjemmemål, bortemål)} for spilte sluttspillkamper."""
+    con = duckdb.connect(DB, read_only=True)
+    df = con.execute(
+        f"""
+        select home_team, away_team, home_score, away_score
+        from fct_matches
+        where tournament = 'FIFA World Cup' and match_date > '{tournament.GROUP_TO}'
+        """
+    ).df()
+    con.close()
+    return {frozenset({norm(r.home_team), norm(r.away_team)}): (norm(r.home_team), int(r.home_score), int(r.away_score))
+            for r in df.itertuples()}

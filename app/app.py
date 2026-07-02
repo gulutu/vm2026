@@ -957,13 +957,14 @@ def sluttspill():
 
     # Videre-sannsynlighet (uavgjort telles halvt til hver, som ved straffespark) og
     # sannsynlig resultat for kamper der begge lag er kjent — slått opp fra samme
-    # prediksjoner som Program-siden.
+    # prediksjoner som Program-siden. Faktisk resultat for spilte kamper overstyrer.
     padv = {}
     for _, r in common.get_match_predictions().iterrows():
         tot = r.p_home + r.p_draw + r.p_away
         adv_home = (r.p_home + r.p_draw / 2) / tot
         padv[frozenset((common.norm(r.home), common.norm(r.away)))] = (
             common.norm(r.home), adv_home, int(r.score_h), int(r.score_a))
+    res_ko = common.get_knockout_results()
 
     omin = ko.dropna(subset=["oslo"]).groupby("round").oslo.min().sort_values()
     order = list(omin.index) + [r for r in ko["round"].unique() if r not in set(omin.index)]
@@ -972,9 +973,16 @@ def sluttspill():
         sub = ko[ko["round"] == rnd]
         out += f"<div class='koround'>{esc(ROUND_NO.get(rnd, rnd))}</div>"
         for _, m in sub.iterrows():
+            key = frozenset((common.norm(m.team1), common.norm(m.team2))) if flag(m.team1) and flag(m.team2) else None
+            played = res_ko.get(key) if key is not None else None
             pct = ""
-            if flag(m.team1) and flag(m.team2):
-                hit = padv.get(frozenset((common.norm(m.team1), common.norm(m.team2))))
+            if played is not None:
+                home_norm, hs, as_ = played
+                s1, s2 = (hs, as_) if home_norm == common.norm(m.team1) else (as_, hs)
+                vs = f"<span class='kovs' style='color:var(--emerald);font-weight:800'>{s1}–{s2}</span>"
+            else:
+                vs = "<span class='kovs'>vs</span>"
+                hit = padv.get(key) if key is not None else None
                 if hit is not None:
                     home_norm, adv_home, sc_h, sc_a = hit
                     is_t1_home = home_norm == common.norm(m.team1)
@@ -993,7 +1001,7 @@ def sluttspill():
                 "<div class='kocard'>"
                 f"<div class='ftop'><span>{esc(common.fmt_oslo(m.oslo))}</span><span>{esc(m.ground)}</span></div>"
                 f"<div class='koteams'><span class='ka'>{_koslot(m.team1)}</span>"
-                f"<span class='kovs'>vs</span><span>{_koslot(m.team2)}</span></div>"
+                f"{vs}<span>{_koslot(m.team2)}</span></div>"
                 f"{pct}"
                 "</div>"
             )
