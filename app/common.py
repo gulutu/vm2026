@@ -48,6 +48,17 @@ def fmt_oslo(d):
     return f"{_NO_DAYS[d.weekday()]} {d.day:02d}.{d.month:02d} · {d:%H:%M}" if d is not None else "TBD"
 
 
+def _db_version():
+    """Endringstidspunkt for databasefila. Sendes inn som cache-nøkkel til
+    funksjonene under, slik at Streamlit sin cache_data/cache_resource
+    auto-invalideres når update.sh skriver ferske data — uten det ville appen
+    vist gamle resultater/anslag til prosessen ble restartet manuelt."""
+    try:
+        return Path(DB).stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
 @st.cache_data
 def photo_uri(filename):
     """Leser et lokalt spillerbilde og returnerer en data-URI (for innbygging i HTML)."""
@@ -63,20 +74,28 @@ def photo_uri(filename):
 
 
 @st.cache_resource
-def get_model():
+def _get_model_cached(_v):
     return fit(to_long(add_weights(filter_teams(load_matches()))))
 
 
+def get_model():
+    return _get_model_cached(_db_version())
+
+
 @st.cache_data
-def get_fixtures():
+def _get_fixtures_cached(_v):
     con = duckdb.connect(DB, read_only=True)
     fx = con.execute("select * from fct_fixtures").df()
     con.close()
     return fx
 
 
+def get_fixtures():
+    return _get_fixtures_cached(_db_version())
+
+
 @st.cache_data
-def get_schedule():
+def _get_schedule_cached(_v):
     con = duckdb.connect(DB, read_only=True)
     df = con.execute("select round, date, time, grp, team1, team2, ground from raw_schedule").df()
     con.close()
@@ -86,21 +105,33 @@ def get_schedule():
     return df.sort_values("oslo")
 
 
+def get_schedule():
+    return _get_schedule_cached(_db_version())
+
+
 @st.cache_data
-def get_squads():
+def _get_squads_cached(_v):
     con = duckdb.connect(DB, read_only=True)
     df = con.execute("select * from raw_squads").df()
     con.close()
     return df
 
 
+def get_squads():
+    return _get_squads_cached(_db_version())
+
+
 @st.cache_data(show_spinner="Simulerer turneringen ...")
-def get_probabilities(n=4000):
+def _get_probabilities_cached(_v, n):
     return tournament.simulate(get_model(), n=n)
 
 
+def get_probabilities(n=4000):
+    return _get_probabilities_cached(_db_version(), n)
+
+
 @st.cache_data(show_spinner="Beregner toppscorer-kappløpet ...")
-def get_scorer_race(top=15):
+def _get_scorer_race_cached(_v, top):
     """Forventede mål per spiller gjennom hele turneringen."""
     model = get_model()
     probs = get_probabilities()
@@ -119,8 +150,12 @@ def get_scorer_race(top=15):
     return shares.sort_values("exp_goals", ascending=False).head(top).reset_index(drop=True)
 
 
+def get_scorer_race(top=15):
+    return _get_scorer_race_cached(_db_version(), top)
+
+
 @st.cache_data
-def get_h2h(a, b, n=6):
+def _get_h2h_cached(_v, a, b, n):
     """Siste innbyrdes oppgjør mellom to lag (fra spilte kamper)."""
     con = duckdb.connect(DB, read_only=True)
     df = con.execute(
@@ -135,6 +170,10 @@ def get_h2h(a, b, n=6):
     ).df()
     con.close()
     return df
+
+
+def get_h2h(a, b, n=6):
+    return _get_h2h_cached(_db_version(), a, b, n)
 
 
 def derive_groups(fixtures):
@@ -153,7 +192,7 @@ def derive_groups(fixtures):
 
 
 @st.cache_data(show_spinner="Beregner kamp-prediksjoner ...")
-def get_match_predictions():
+def _get_match_predictions_cached(_v):
     """Modellens prediksjon for hver gruppespillkamp + tid/sted + toppscorer per lag."""
     model = get_model()
     fx = get_fixtures().copy()
@@ -186,8 +225,12 @@ def get_match_predictions():
     return df.sort_values("t").reset_index(drop=True)
 
 
+def get_match_predictions():
+    return _get_match_predictions_cached(_db_version())
+
+
 @st.cache_data(show_spinner="Sammenligner resultater mot modellen ...")
-def get_results_vs_model():
+def _get_results_vs_model_cached(_v):
     """Spilte VM-gruppekamper med modellens prediksjon mot faktisk resultat.
     Bruker frosne før-kamp-anslag (model_predictions) der de finnes, ellers
     en live-beregning på nåværende modell."""
@@ -247,8 +290,12 @@ def get_results_vs_model():
     return pd.DataFrame(rows)
 
 
+def get_results_vs_model():
+    return _get_results_vs_model_cached(_db_version())
+
+
 @st.cache_data
-def get_knockout():
+def _get_knockout_cached(_v):
     """Sluttspill-kampene fra kampprogrammet (gruppefelt er tomt for utslagsrunder)."""
     con = duckdb.connect(DB, read_only=True)
     df = con.execute(
@@ -259,8 +306,12 @@ def get_knockout():
     return df.sort_values("oslo")
 
 
+def get_knockout():
+    return _get_knockout_cached(_db_version())
+
+
 @st.cache_data
-def get_knockout_results():
+def _get_knockout_results_cached(_v):
     """{uordnet lagpar: (hjemmelag, hjemmemål, bortemål)} for spilte sluttspillkamper."""
     con = duckdb.connect(DB, read_only=True)
     df = con.execute(
@@ -273,3 +324,7 @@ def get_knockout_results():
     con.close()
     return {frozenset({norm(r.home_team), norm(r.away_team)}): (norm(r.home_team), int(r.home_score), int(r.away_score))
             for r in df.itertuples()}
+
+
+def get_knockout_results():
+    return _get_knockout_results_cached(_db_version())
